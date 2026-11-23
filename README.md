@@ -250,7 +250,16 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The `publish` workflow runs tests and evals, checks the tag against the package version, then publishes with provenance. Add `NPM_TOKEN` as a repository secret first.
+The `publish` workflow runs tests and evals, checks the tag against the package version, then publishes with provenance.
+
+Publishing is keyless. Configure npm trusted publishing once:
+
+1. Open the package settings on npmjs.com, then Trusted Publisher.
+2. Choose GitHub Actions.
+3. Set repository `m-ishfaq/agentic-stack` and workflow `publish.yml`.
+4. Enable direct `npm publish`, not only staged publish.
+
+No `NPM_TOKEN` secret is needed. You can also run the workflow manually from the Actions tab; the tag check is skipped on branch runs.
 
 Manual publish:
 

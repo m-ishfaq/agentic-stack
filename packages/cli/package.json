@@ -30,7 +30,7 @@
   ],
   "type": "module",
   "bin": {
-    "agentic": "./bin/agentic.js"
+    "agentic": "bin/agentic.js"
   },
   "files": [
     "bin",

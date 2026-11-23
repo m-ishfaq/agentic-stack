@@ -19,11 +19,14 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      - name: Install current npm
+        run: npm install -g npm@latest
       - name: Unit and integration tests
         run: npm test
       - name: Evals
         run: npm run eval
       - name: Tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           tag="${GITHUB_REF_NAME#v}"
           version="$(node -p "require('./packages/cli/package.json').version")"
@@ -31,8 +34,9 @@ jobs:
             echo "tag $tag does not match packages/cli version $version"
             exit 1
           fi
+      # Keyless publish through npm trusted publishing (OIDC).
+      # npmjs.com > package > Settings > Trusted Publisher:
+      # provider GitHub Actions, repo m-ishfaq/agentic-stack, workflow publish.yml.
       - name: Publish to npm
         working-directory: packages/cli
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
