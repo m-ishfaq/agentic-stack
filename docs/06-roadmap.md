@@ -21,11 +21,11 @@ Runnable in this repository:
 - zero-dependency core: detection, config, render, lock, policy, packs, adapters, upgrade
 - CLI: `init`, `init --dry-run`, `sync`, `upgrade`, `check`, `doctor`
 - adapters: `AGENTS.md`, `CLAUDE.md`, Claude settings, skills and commands, Cursor rules and MCP, Copilot instructions, Gemini, Devin, Aider, Codex via `AGENTS.md`
-- nine rules, eight skills, ten commands, three stack packs, three document templates
+- nine rules, eight skills, ten commands, ten stack packs, three document templates
 - guard hook, safe test runner, project-only devcontainer
 - CI drift check and secret scan for installed projects
 - publishable tarball with bundled core and templates, verified with `npm pack`
-- nine tests covering scope, globs, policy, install, all adapters, packs, upgrade, guard, and the test runner
+- thirteen tests covering scope, globs, policy, install, all adapters, packs, upgrade, guard, strictness, sync restore, check, and the test runner
 
 Phase 3 additions:
 

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>agentic-stack demo frame</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #0d1117;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
+  }
+  .window {
+    width: 880px;
+    height: 470px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .bar {
+    height: 38px;
+    flex: 0 0 auto;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .title {
+    flex: 1;
+    text-align: center;
+    padding-right: 56px;
+    color: #8b949e;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+  }
+  .body {
+    padding: 26px 30px;
+    font-size: 19px;
+    line-height: 1.72;
+    color: #e6edf3;
+  }
+  .row { white-space: pre; }
+  .prompt { color: #7ee787; }
+  .cmd { color: #e6edf3; }
+  .out { color: #8b949e; }
+  .ok { color: #3fb950; }
+  .err { color: #ff7b72; }
+  .cursor {
+    display: inline-block;
+    width: 10px;
+    height: 20px;
+    margin-left: 3px;
+    vertical-align: -3px;
+    background: #e6edf3;
+  }
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="bar">
+    <span class="dot" style="background:#ff5f56"></span>
+    <span class="dot" style="background:#ffbd2e"></span>
+    <span class="dot" style="background:#27c93f"></span>
+    <span class="title">agentic-stack</span>
+  </div>
+  <div class="body" id="body"></div>
+</div>
+<script>
+  const f = Number(new URLSearchParams(location.search).get('f') || 0);
+  const rows = [];
+  const push = (kind, at, text) => rows.push({ kind, at, text });
+
+  push('cmd', 2, 'npx agentic-stack@latest init');
+  push('out', 36, 'Installed 84 files.');
+  push('out', 40, 'Adapters: claude, cursor, copilot');
+  push('out', 44, 'Policy:   .agents/policies/deny.json');
+  push('cmd', 53, 'npm test');
+  push('err', 65, 'Blocked: run tests only with the test:safe command.');
+  push('out', 69, 'Do not retry another way. Report it and let the human decide.');
+  push('cmd', 77, 'npm run test:safe');
+  push('ok', 97, 'ok  tests passed');
+  push('cmd', 105, '');
+
+  const body = document.getElementById('body');
+  const visible = rows.filter((row) => f >= row.at);
+  const blink = Math.floor(f / 3) % 2 === 0;
+  let html = '';
+
+  visible.forEach((row) => {
+    const last = row === visible[visible.length - 1];
+    let text = row.text;
+    let cursor = '';
+
+    if (row.kind === 'cmd') {
+      const typed = row.text ? Math.max(0, Math.min(row.text.length, f - row.at)) : 0;
+      text = row.text.slice(0, typed);
+      if (last) {
+        cursor = `<span class="cursor" style="opacity:${blink ? 1 : 0}"></span>`;
+      }
+      html += `<div class="row"><span class="prompt">$ </span><span class="cmd">${escapeHtml(text)}</span>${cursor}</div>`;
+      return;
+    }
+
+    html += `<div class="row ${row.kind}">${escapeHtml(text)}</div>`;
+  });
+
+  body.innerHTML = html;
+
+  function escapeHtml(value) {
+    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+</script>
+</body>
+</html>

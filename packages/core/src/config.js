@@ -5,6 +5,7 @@ import { pathExists } from './util.js';
 export const CONFIG_FILE = 'agentic.config.json';
 
 export const VALID_ADAPTERS = ['claude', 'cursor', 'copilot', 'codex', 'gemini', 'devin', 'aider'];
+export const VALID_STRICTNESS = ['strict', 'balanced', 'loose'];
 
 export function defaultConfig(project) {
   return {
@@ -52,6 +53,10 @@ export function validateConfig(config) {
     if (!VALID_ADAPTERS.includes(adapter)) throw new Error(`unknown adapter: ${adapter}`);
   }
   if (!Array.isArray(config.packs)) throw new Error('config.packs must be an array');
+  const strictness = config.policy?.strictness;
+  if (strictness !== undefined && !VALID_STRICTNESS.includes(strictness)) {
+    throw new Error(`unknown strictness: ${strictness}. Use ${VALID_STRICTNESS.join(', ')}`);
+  }
   return true;
 }
 

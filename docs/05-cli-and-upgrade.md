@@ -32,11 +32,11 @@ Requirements: Node 20 or newer. No global install. No network after the package 
 
 | Command | Reads | Writes | Exit |
 |---|---|---|---|
-| `init [dir]` | repo detection | source, adapters, config, lock, CI | 0, 1 on collision |
-| `sync` | config, source, lock | adapters only | 0, 1 on drift |
+| `init [dir]` | repo detection | source, adapters, config, lock, CI | 0, 3 on collision, 5 on budget |
+| `sync` | config, source, lock | adapters only | 0, 4 on drift or missing |
 | `check` | everything | nothing | 1 on drift or invalid policy |
-| `upgrade` | registry, lock | 3-way merge result | 1 on conflict |
-| `add <pack>` | registry | pack files, config | 1 if unknown |
+| `upgrade` | bundled templates, lock | 3-way merge result | 6 on conflict |
+| `add <pack>` | bundled packs | pack files, config | 1 if unknown |
 | `doctor` | environment | nothing | 1 on failed check |
 | `eject` | lock | removes `.agentic/` metadata | 0 |
 | `init --dry-run` | detection | nothing, prints plan | 0 |
@@ -54,6 +54,23 @@ Requirements: Node 20 or newer. No global install. No network after the package 
 ```
 
 `init` refuses to write into a non-empty target unless `--force`, or unless the only entries are `.git`, `README.md`, and dotfiles that do not collide.
+
+### `sync` flags
+
+```text
+--restore             recreate generated files deleted by hand
+--dry-run             print what would change and stop
+```
+
+### Strictness
+
+| Level | Denied actions | Ask list |
+|---|---|---|
+| `strict` | blocked | blocked |
+| `balanced` | blocked | reported, allowed |
+| `loose` | blocked | ignored |
+
+The ask list covers package installs, removals, Docker, migrations, and edits to manifests and workflows. Git writes, secrets, databases, deploys, and paths outside the project are denied at every level.
 
 ### `check` output
 
@@ -78,7 +95,7 @@ Machine-readable with `--json`.
 
 `agentic.config.json`, schema-validated. Unknown keys fail. See `01-architecture.md` for the shape.
 
-Precedence: CLI flag, then config, then detection, then default. A flag never edits config. `--adapters` changes this run only, unless `--save` is passed.
+Precedence: CLI flag, then config, then detection, then default. During `init` the resolved choice is written to `agentic.config.json`, so later runs reuse it. `sync` and `add` update config only for packs.
 
 ## Lockfile
 
@@ -174,12 +191,9 @@ Checks:
 - git present
 - config parses
 - policy parses
-- hook scripts exist and are executable where the platform needs it
-- generated files exist
-- lock matches
-- `.env` is gitignored
-- dev database port is not used for tests
-- Windows: no bash-only hook, no CRLF in scripts
+- lock present, guard hook present, test runner present
+
+`check` is the deeper pass. It verifies every locked file hash, the `AGENTS.md` budget, the `.env` ignore rule, the guard wiring in `.claude/settings.json`, the opt-in verify hook, and that each configured pack has rules installed.
 
 ## Eject
 

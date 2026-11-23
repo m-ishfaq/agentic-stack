@@ -8,6 +8,7 @@ import {
   checkProject,
   initProject,
   readLock,
+  syncProject,
   templatesBasePath,
   upgradeProject,
 } from '../src/index.js';
@@ -162,6 +163,80 @@ test('guard hook blocks unsafe actions and allows safe ones', async () => {
     run({ tool_name: 'Bash', tool_input: { command: 'npm run test:safe' } }).status,
     0,
   );
+});
+
+test('init leaves .gitignore alone when gitignore is disabled', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-gitignore-'));
+  const result = await initProject(root, { adapters: ['claude'], gitignore: false });
+  assert.equal(result.ok, true);
+  await assert.rejects(fs.access(path.join(root, '.gitignore')));
+
+  const second = await initProject(root, { adapters: ['claude'], gitignore: false });
+  assert.equal(second.ok, true);
+});
+
+test('sync reports deleted files and restores them only when asked', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-restore-'));
+  await initProject(root, { adapters: ['claude'] });
+
+  const removed = '.claude/commands/spec.md';
+  await fs.rm(path.join(root, removed));
+
+  const reported = await syncProject(root);
+  assert.ok(reported.missing.includes(removed));
+  await assert.rejects(fs.access(path.join(root, removed)));
+
+  const restored = await syncProject(root, { restore: true });
+  assert.ok(restored.written.includes(removed));
+  await fs.access(path.join(root, removed));
+  assert.equal(await checkProject(root).then((result) => result.ok), true);
+});
+
+test('strictness controls how the ask list is enforced', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-strict-'));
+  await initProject(root, { adapters: ['claude'], strictness: 'strict' });
+  const guard = path.join(root, '.agents', 'hooks', 'guard.mjs');
+  const configFile = path.join(root, 'agentic.config.json');
+
+  const run = () =>
+    spawnSync(process.execPath, [guard], {
+      input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm install left-pad' } }),
+      env: { ...process.env, AGENTIC_PROJECT_ROOT: root },
+      encoding: 'utf8',
+    });
+
+  const strict = run();
+  assert.equal(strict.status, 2);
+  assert.match(strict.stderr, /needs review/);
+
+  const setLevel = async (level) => {
+    const config = JSON.parse(await fs.readFile(configFile, 'utf8'));
+    config.policy.strictness = level;
+    await fs.writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`);
+  };
+
+  await setLevel('balanced');
+  const balanced = run();
+  assert.equal(balanced.status, 0);
+  assert.match(balanced.stderr, /Ask first/);
+
+  await setLevel('loose');
+  const loose = run();
+  assert.equal(loose.status, 0);
+  assert.equal(loose.stderr, '');
+});
+
+test('check reports missing hooks and pack rules', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-check-'));
+  await initProject(root, { adapters: ['claude'], packs: ['typescript'] });
+
+  await fs.rm(path.join(root, '.agents', 'hooks', 'guard.mjs'));
+  await fs.rm(path.join(root, '.agents', 'rules', 'typescript--00-typescript.md'));
+
+  const result = await checkProject(root);
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.includes('missing hook: .agents/hooks/guard.mjs'));
+  assert.ok(result.problems.includes('missing rules for pack: typescript'));
 });
 
 test('safe test runner refuses foreign, dev, and wrongly named databases', async () => {

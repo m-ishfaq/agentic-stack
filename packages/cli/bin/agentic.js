@@ -22,6 +22,7 @@ const {
   initProject,
   syncProject,
   upgradeProject,
+  VALID_STRICTNESS,
   VERSION,
 } = core;
 
@@ -84,9 +85,16 @@ async function init() {
     adapters: list(flags.adapters),
     packs: list(flags.packs),
     strictness: typeof flags.strictness === 'string' ? flags.strictness : undefined,
+    gitignore: !flags['no-gitignore'],
     force: Boolean(flags.force),
     dryRun: Boolean(flags['dry-run']),
   };
+
+  if (options.strictness && !VALID_STRICTNESS.includes(options.strictness)) {
+    console.error(`Unknown strictness: ${options.strictness}. Use ${VALID_STRICTNESS.join(', ')}.`);
+    process.exitCode = 2;
+    return;
+  }
 
   const plan = await initProject(root, { ...options, dryRun: true });
   if (!plan.ok && plan.collisions && !options.force) {
@@ -138,19 +146,27 @@ async function init() {
 
 async function sync() {
   const root = flags._[0] ?? process.cwd();
-  const result = await syncProject(root, { dryRun: Boolean(flags['dry-run']) });
+  const result = await syncProject(root, {
+    dryRun: Boolean(flags['dry-run']),
+    restore: Boolean(flags.restore),
+  });
   if (result.drift.length > 0) {
     console.error('Skipped files edited by hand:\n');
     for (const file of result.drift) console.error(`  ${file}`);
     console.error('\nRevert them or re-run with a reviewed diff.');
   }
-  if (result.written.length === 0 && result.drift.length === 0) {
+  if (result.missing.length > 0) {
+    console.error('Deleted since install, left alone:\n');
+    for (const file of result.missing) console.error(`  ${file}`);
+    console.error('\nRun agentic sync --restore to recreate them.');
+  }
+  if (result.written.length === 0 && result.drift.length === 0 && result.missing.length === 0) {
     console.log('Already in sync.');
   } else if (result.written.length > 0) {
     console.log(`Updated ${result.written.length} generated files:`);
     for (const file of result.written) console.log(`  ${file}`);
   }
-  if (result.drift.length > 0) process.exitCode = 4;
+  if (result.drift.length > 0 || result.missing.length > 0) process.exitCode = 4;
 }
 
 async function upgrade() {
@@ -193,7 +209,7 @@ async function add() {
     process.exitCode = 2;
     return;
   }
-    const result = await addProject(root, pack, { dryRun: Boolean(flags['dry-run']) });
+  const result = await addProject(root, pack, { dryRun: Boolean(flags['dry-run']) });
   if (result.already) {
     console.log(`Pack already installed: ${pack}`);
     return;
@@ -253,7 +269,7 @@ function help() {
 
 Usage:
   agentic init [dir] [options]
-  agentic sync [dir]
+  agentic sync [dir] [--restore] [--dry-run]
   agentic upgrade [dir] [--dry-run]
   agentic add <pack> [dir]
   agentic eject [dir] [--yes]
@@ -263,8 +279,10 @@ Usage:
 Options:
   --yes                 accept defaults, no prompt
   --adapters <list>     claude,cursor,copilot,codex,gemini,devin,aider
-  --packs <list>        typescript,react-next,python
+  --packs <list>        typescript,react-next,python,go,php-laravel,java,rust,docker,monorepo,mobile
   --strictness <level>  strict, balanced, loose
+  --no-gitignore        do not edit .gitignore
+  --restore             recreate generated files deleted by hand
   --dry-run             print the plan, write nothing
   --force               back up and replace conflicting files
   --json                machine-readable output

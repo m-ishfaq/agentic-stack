@@ -1,5 +1,12 @@
 export { detectProject } from './detect.js';
-export { defaultConfig, loadConfig, saveConfig, validateConfig, VALID_ADAPTERS } from './config.js';
+export {
+  defaultConfig,
+  loadConfig,
+  saveConfig,
+  validateConfig,
+  VALID_ADAPTERS,
+  VALID_STRICTNESS,
+} from './config.js';
 export { checkCommand, checkReadPath, checkWritePath, loadPolicy } from './policy.js';
 export {
   addProject,

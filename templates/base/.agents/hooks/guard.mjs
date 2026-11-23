@@ -22,15 +22,20 @@ try {
 
 const command = input.command || input.cmd || '';
 const filePath = input.file_path || input.filePath || input.path || input.notebook_path || '';
+const strictness = await readStrictness();
 
 if (tool === 'Bash' || command) {
   const block = checkCommand(command, policy);
   if (block) deny(block);
+  const question = checkAskCommand(command, policy);
+  if (question) handleAsk(question, strictness);
 }
 
 if (filePath) {
   const block = checkPath(filePath, tool, policy);
   if (block) deny(block);
+  const question = checkAskPath(filePath, tool, policy);
+  if (question) handleAsk(question, strictness);
 }
 
 process.exit(0);
@@ -74,6 +79,31 @@ function checkCommand(value, policy) {
   }
 
   return null;
+}
+
+function checkAskCommand(value, policy) {
+  if (!value) return null;
+  for (const pattern of policy.ask?.commands ?? []) {
+    try {
+      if (new RegExp(pattern).test(value)) return `command needs review: ${pattern}`;
+    } catch {
+      // Ignore broken patterns.
+    }
+  }
+  return null;
+}
+
+function checkAskPath(value, tool, policy) {
+  if (tool === 'Read' || tool === 'Glob' || tool === 'Grep') return null;
+  const relative = path.relative(root, path.resolve(root, value)).split(path.sep).join('/');
+  const matched = (policy.ask?.paths ?? []).find((pattern) => glob(pattern).test(relative));
+  return matched ? `write needs review: ${matched}` : null;
+}
+
+function handleAsk(reason, level) {
+  if (level === 'loose') return;
+  if (level === 'strict') deny(reason);
+  console.error(`Ask first: ${reason}. Continue only if this is intended.`);
 }
 
 function checkPath(value, tool, policy) {
@@ -161,6 +191,18 @@ function deny(reason) {
   console.error(`Blocked: ${reason}.`);
   console.error('Do not retry another way. Report it and let the human decide.');
   process.exit(2);
+}
+
+async function readStrictness() {
+  try {
+    const config = JSON.parse(
+      await fs.readFile(path.join(root, 'agentic.config.json'), 'utf8'),
+    );
+    const level = config?.policy?.strictness;
+    return level === 'balanced' || level === 'loose' ? level : 'strict';
+  } catch {
+    return 'strict';
+  }
 }
 
 async function readPayload() {

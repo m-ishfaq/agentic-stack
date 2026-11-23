@@ -23,7 +23,8 @@
   "packageManager": "pnpm@9.12.0",
   "scripts": {
     "test": "node --test packages/core/test/core.test.js",
-    "eval": "node evals/run.mjs"
+    "eval": "node evals/run.mjs",
+    "demo": "node scripts/make-demo.mjs"
   },
   "workspaces": [
     "packages/*"

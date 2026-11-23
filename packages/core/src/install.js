@@ -135,7 +135,7 @@ export async function initProject(root, options = {}) {
     written.push(file.path);
   }
 
-  await ensureGitignore(target);
+  if (options.gitignore !== false) await ensureGitignore(target);
   await saveConfig(target, config);
   await writeLock(target, files, {
     templateVersion: VERSION,
@@ -178,15 +178,24 @@ export async function syncProject(root, options = {}) {
 
   const lock = await readLock(target);
   const drift = [];
+  const missing = [];
   const written = [];
   for (const file of files) {
     const full = path.join(target, file.path);
     const previous = lock?.files?.[file.path];
     const current = (await pathExists(full)) ? await fs.readFile(full, 'utf8') : null;
-    if (previous && current !== null && sha256(current) !== previous.sha256) {
+
+    if (current === null && previous) {
+      // A human removed a generated file. Leave it alone unless asked to restore.
+      if (!options.restore) {
+        missing.push(file.path);
+        continue;
+      }
+    } else if (previous && current !== null && sha256(current) !== previous.sha256) {
       drift.push(file.path);
       continue;
     }
+
     if (current === file.content) continue;
     if (!options.dryRun) {
       await fs.mkdir(path.dirname(full), { recursive: true });
@@ -197,7 +206,8 @@ export async function syncProject(root, options = {}) {
 
   if (!options.dryRun && written.length > 0) {
     const entries = { ...(lock?.files ?? {}) };
-    for (const file of files) {
+    for (const filePath of written) {
+      const file = files.find((item) => item.path === filePath);
       entries[file.path] = {
         sha256: sha256(file.content),
         source: file.source,
@@ -208,7 +218,7 @@ export async function syncProject(root, options = {}) {
   }
 
   await saveConfig(target, config);
-  return { ok: true, written, drift, files };
+  return { ok: true, written, drift, missing, files };
 }
 
 export async function addProject(root, pack, options = {}) {

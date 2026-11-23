@@ -23,6 +23,36 @@ export async function checkProject(root) {
     problems.push(`policy invalid: ${error.message}`);
   }
 
+  const requiredHooks = ['.agents/hooks/guard.mjs', '.agents/scripts/test-safe.mjs'];
+  if (config?.hooks?.verifyOnStop) requiredHooks.push('.agents/hooks/verify.mjs');
+  for (const file of requiredHooks) {
+    if (!(await pathExists(path.join(target, file)))) problems.push(`missing hook: ${file}`);
+  }
+
+  if (config?.adapters?.includes('claude')) {
+    const settingsFile = path.join(target, '.claude', 'settings.json');
+    if (!(await pathExists(settingsFile))) {
+      problems.push('missing .claude/settings.json');
+    } else {
+      try {
+        const settings = JSON.parse(await fs.readFile(settingsFile, 'utf8'));
+        const wired = (settings.hooks?.PreToolUse ?? []).some((entry) =>
+          (entry.hooks ?? []).some((hook) => String(hook.command ?? '').includes('guard.mjs')),
+        );
+        if (!wired) problems.push('guard hook is not wired in .claude/settings.json');
+      } catch (error) {
+        problems.push(`.claude/settings.json invalid: ${error.message}`);
+      }
+    }
+  }
+
+  for (const pack of config?.packs ?? []) {
+    const present = (await safeReaddir(path.join(target, '.agents', 'rules'))).some(
+      (file) => file.startsWith(`${pack}--`) && file.endsWith('.md'),
+    );
+    if (!present) problems.push(`missing rules for pack: ${pack}`);
+  }
+
   const lock = await readLock(target);
   if (!lock) {
     problems.push('missing .agentic/lock.json');
@@ -53,6 +83,14 @@ export async function checkProject(root) {
   }
 
   return { ok: problems.length === 0, problems, lock };
+}
+
+async function safeReaddir(dir) {
+  try {
+    return await fs.readdir(dir);
+  } catch {
+    return [];
+  }
 }
 
 export async function doctorProject(root) {
