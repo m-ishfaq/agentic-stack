@@ -8,9 +8,9 @@ description: Implement a behavior test first, then the smallest code that passes
 ## Loop
 
 1. Write one failing test for the next acceptance criterion.
-2. Run `test:safe`. Confirm it fails for the expected reason.
+2. Run the configured testSafe command. Confirm it fails for the expected reason.
 3. Write the smallest code that passes.
-4. Run `test:safe`. Confirm green.
+4. Run the configured testSafe command. Confirm green.
 5. Refactor with the test green.
 6. Repeat for the next criterion.
 
@@ -31,7 +31,7 @@ Use the project's existing test framework and helpers. Do not add a second one.
 - No implementation detail asserted unless it is the contract.
 - A bug fix starts with a test that reproduces the bug.
 - Never change an assertion to make it pass without saying why.
-- If the test needs a database, use the disposable one through `test:safe`.
+- If the test needs a database, use the disposable one through the configured testSafe command.
 
 ## Stop when
 

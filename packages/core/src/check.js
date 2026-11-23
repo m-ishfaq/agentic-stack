@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { adapterCapabilities } from './adapters.js';
 import { CONFIG_FILE, loadConfig } from './config.js';
 import { currentHash, readLock } from './lock.js';
 import { loadPolicy } from './policy.js';
@@ -59,9 +60,24 @@ export async function checkProject(root) {
   } else {
     for (const [file, meta] of Object.entries(lock.files ?? {})) {
       const hash = await currentHash(target, file);
-      if (hash === null) problems.push(`missing generated file: ${file}`);
-      else if (hash !== meta.sha256) problems.push(`drift: ${file}`);
+      if (hash === null) {
+        problems.push(`missing generated file: ${file}`);
+        continue;
+      }
+      const blockFile = file === 'AGENTS.md' || file === '.codex/config.toml';
+      if (meta.managed && blockFile) {
+        const text = await fs.readFile(path.join(target, file), 'utf8');
+        if (!text.includes('agentic-stack:begin')) {
+          problems.push(`missing managed block: ${file}`);
+        }
+      } else if (!meta.managed && hash !== meta.sha256) {
+        problems.push(`drift: ${file}`);
+      }
     }
+  }
+
+  if (!(await pathExists(path.join(target, '.agents', 'project.md')))) {
+    problems.push('missing .agents/project.md');
   }
 
   const agentsFile = path.join(target, 'AGENTS.md');
@@ -138,5 +154,13 @@ export async function doctorProject(root) {
     detail: '.agents/scripts/test-safe.mjs',
   });
 
-  return { ok: checks.every((check) => check.ok), checks };
+  let adapters = [];
+  try {
+    const config = await loadConfig(target);
+    adapters = adapterCapabilities(config?.adapters ?? []);
+  } catch {
+    adapters = [];
+  }
+
+  return { ok: checks.every((check) => check.ok), checks, adapters };
 }

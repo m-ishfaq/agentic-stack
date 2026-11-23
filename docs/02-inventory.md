@@ -194,9 +194,8 @@ Beyond agent files, `init` adds:
 - `.editorconfig`
 - `.gitattributes` with LF enforcement
 - `.gitignore` entries for `.agentic/logs`, backups, conflicts, and env files
-- `.devcontainer/devcontainer.json`: only the repo mounted, no Docker socket, no host env passthrough
-- `.github/pull_request_template.md`
-- `SECURITY.md`
+- `.devcontainer/devcontainer.json` with `--devcontainer`: only the repo mounted, no Docker socket, no host env passthrough
+- `.github/workflows/agentic.yml` with `--ci`: runs `agentic check`
 - optional `docs/` skeleton for specs, plans, ADRs
 
 ## Priority summary

@@ -1,3 +1,11 @@
+---
+paths:
+  - "lib/**"
+  - "ios/**"
+  - "android/**"
+  - "src/**"
+---
+
 # Mobile
 
 ## Platform files

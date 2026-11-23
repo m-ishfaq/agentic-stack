@@ -23,7 +23,7 @@ export async function writeLock(root, files, meta) {
   const lock = {
     lockVersion: 1,
     ...meta,
-    files: entries,
+    files: meta.files ?? entries,
   };
   const target = path.join(root, LOCK_FILE);
   await fs.mkdir(path.dirname(target), { recursive: true });

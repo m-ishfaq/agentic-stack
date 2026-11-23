@@ -1,3 +1,11 @@
+---
+paths:
+  - "packages/**"
+  - "apps/**"
+  - "turbo.json"
+  - "nx.json"
+---
+
 # Monorepo
 
 ## Boundaries

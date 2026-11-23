@@ -97,8 +97,10 @@ test('install writes adapters, policy, lock, and passes check', async () => {
 test('all adapters and packs install together', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-all-'));
   const result = await initProject(root, {
-    adapters: ['claude', 'cursor', 'copilot', 'codex', 'gemini', 'devin', 'aider'],
+    adapters: ['claude', 'cursor', 'copilot', 'codex', 'gemini', 'cline', 'devin', 'aider'],
     packs: ['typescript', 'python'],
+    devcontainer: true,
+    ci: true,
   });
   assert.equal(result.ok, true, result.problems?.join(', '));
 
@@ -108,16 +110,103 @@ test('all adapters and packs install together', async () => {
     '.agents/rules/typescript--00-typescript.md',
     '.cursor/rules/typescript--00-typescript.mdc',
     '.devin/rules/05-response.md',
+    '.clinerules/05-response.md',
     'GEMINI.md',
+    '.gemini/commands/spec.toml',
     'CONVENTIONS.md',
     '.aider.conf.yml',
     '.devcontainer/devcontainer.json',
+    '.github/workflows/agentic.yml',
+    '.claude/rules/05-response.md',
   ]) {
     await fs.access(path.join(root, file));
   }
 
   const check = await checkProject(root);
   assert.equal(check.ok, true, check.problems.join(', '));
+});
+
+test('init stays neutral, merges existing files, and keeps user edits', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-merge-'));
+  await fs.writeFile(
+    path.join(root, 'package.json'),
+    JSON.stringify({ scripts: { test: 'node --test', lint: 'eslint .' } }),
+  );
+  await fs.writeFile(path.join(root, 'CLAUDE.md'), '# My notes\n\nKeep this.\n');
+  await fs.mkdir(path.join(root, '.claude'), { recursive: true });
+  await fs.writeFile(
+    path.join(root, '.claude', 'settings.json'),
+    JSON.stringify({ permissions: { deny: ['Bash(rm:*)'] }, theme: 'dark' }),
+  );
+  await fs.mkdir(path.join(root, '.cursor'), { recursive: true });
+
+  const result = await initProject(root, {});
+  assert.equal(result.ok, true, result.problems?.join(', '));
+  assert.deepEqual(result.config.adapters, ['claude', 'cursor']);
+  assert.equal(result.config.project.packageManager, 'npm');
+  assert.equal(result.config.project.commands.test, 'npm test');
+  assert.equal(result.config.project.commands.testSafe, 'node .agents/scripts/test-safe.mjs');
+  assert.equal(result.config.project.commands.typecheck, null);
+
+  const claudeMd = await fs.readFile(path.join(root, 'CLAUDE.md'), 'utf8');
+  assert.match(claudeMd, /Keep this\./);
+  assert.equal(claudeMd.match(/@AGENTS\.md/g).length, 1);
+
+  const settings = JSON.parse(await fs.readFile(path.join(root, '.claude', 'settings.json'), 'utf8'));
+  assert.ok(settings.permissions.deny.includes('Bash(rm:*)'));
+  assert.ok(settings.permissions.deny.includes('Bash(git push:*)'));
+  assert.equal(settings.theme, 'dark');
+  assert.ok(settings.hooks.PreToolUse.length > 0);
+
+  const second = await initProject(root, {});
+  assert.equal(second.ok, true);
+  const stable = await fs.readFile(path.join(root, 'CLAUDE.md'), 'utf8');
+  assert.equal(stable, claudeMd);
+  assert.equal(stable.match(/@AGENTS\.md/g).length, 1);
+
+  const agents = await fs.readFile(path.join(root, 'AGENTS.md'), 'utf8');
+  assert.match(agents, /agentic-stack:begin/);
+  assert.match(agents, /npm test/);
+
+  await fs.appendFile(path.join(root, 'AGENTS.md'), '\nHuman note after the block.\n');
+  await syncProject(root);
+  const synced = await fs.readFile(path.join(root, 'AGENTS.md'), 'utf8');
+  assert.match(synced, /Human note after the block\./);
+  assert.equal(synced.match(/agentic-stack:begin/g).length, 1);
+});
+
+test('empty project writes not configured and no adapter', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-empty-'));
+  const result = await initProject(root, {});
+  assert.equal(result.ok, true, result.problems?.join(', '));
+  assert.deepEqual(result.config.adapters, []);
+  assert.equal(result.config.project.stack, null);
+  assert.equal(result.config.project.packageManager, null);
+  assert.equal(result.config.project.commands.test, null);
+  await assert.rejects(fs.access(path.join(root, 'CLAUDE.md')));
+  await assert.rejects(fs.access(path.join(root, '.devcontainer')));
+
+  const agents = await fs.readFile(path.join(root, 'AGENTS.md'), 'utf8');
+  assert.match(agents, /not configured/);
+});
+
+test('detects Laravel commands without assuming npm', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-laravel-'));
+  await fs.writeFile(
+    path.join(root, 'composer.json'),
+    JSON.stringify({ require: { 'laravel/framework': '^11.0' }, scripts: { dev: 'vite' } }),
+  );
+  await fs.writeFile(path.join(root, 'artisan'), '');
+
+  const result = await initProject(root, {});
+  assert.equal(result.ok, true, result.problems?.join(', '));
+  assert.equal(result.config.project.stack, 'Laravel (PHP)');
+  assert.equal(result.config.project.packageManager, 'composer');
+  assert.equal(result.config.project.commands.test, 'php artisan test');
+  assert.equal(result.config.project.commands.install, 'composer install');
+  assert.equal(result.config.project.commands.dev, 'composer run dev');
+  assert.equal(result.config.project.commands.build, null);
+  assert.deepEqual(result.config.packs, ['php-laravel']);
 });
 
 test('upgrade keeps local edits and reports conflicts', async () => {
@@ -143,21 +232,40 @@ test('upgrade keeps local edits and reports conflicts', async () => {
 
 test('guard hook blocks unsafe actions and allows safe ones', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-guard-'));
+  await fs.writeFile(
+    path.join(root, 'package.json'),
+    JSON.stringify({ scripts: { test: 'node --test' } }),
+  );
   await initProject(root, { adapters: ['claude'] });
   const guard = path.join(root, '.agents', 'hooks', 'guard.mjs');
 
-  const run = (payload) =>
+  const run = (payload, projectRoot = root) =>
     spawnSync(process.execPath, [guard], {
       input: JSON.stringify(payload),
-      env: { ...process.env, AGENTIC_PROJECT_ROOT: root },
+      env: { ...process.env, AGENTIC_PROJECT_ROOT: projectRoot },
       encoding: 'utf8',
     });
 
   assert.equal(run({ tool_name: 'Bash', tool_input: { command: 'git push' } }).status, 2);
   assert.equal(run({ tool_name: 'Bash', tool_input: { command: 'git add .' } }).status, 2);
   assert.equal(run({ tool_name: 'Bash', tool_input: { command: 'npm test' } }).status, 2);
+  assert.equal(
+    run({ tool_name: 'Bash', tool_input: { command: 'node .agents/scripts/test-safe.mjs' } }).status,
+    0,
+  );
   assert.equal(run({ tool_name: 'Read', tool_input: { file_path: '.env' } }).status, 2);
   assert.equal(run({ tool_name: 'Read', tool_input: { file_path: '.env.example' } }).status, 0);
+
+  const linkedRoot = path.join(root, 'linked-root');
+  try {
+    await fs.symlink(root, linkedRoot, 'junction');
+    assert.equal(
+      run({ tool_name: 'Read', tool_input: { file_path: '.env.example' } }, linkedRoot).status,
+      0,
+    );
+  } catch {
+    // Some Windows setups disallow symlinks. The realpath fix still applies.
+  }
   assert.equal(run({ tool_name: 'Write', tool_input: { file_path: '../x' } }).status, 2);
   assert.equal(
     run({ tool_name: 'Bash', tool_input: { command: 'npm run test:safe' } }).status,

@@ -7,4 +7,4 @@ Read `.agents/skills/tdd/SKILL.md` and follow it for:
 
 $ARGUMENTS
 
-Change only the files the task names. Run `test:safe` before reporting.
+Change only the files the task names. Run the configured testSafe command before reporting.

@@ -32,8 +32,8 @@ Requirements: Node 20 or newer. No global install. No network after the package 
 
 | Command | Reads | Writes | Exit |
 |---|---|---|---|
-| `init [dir]` | repo detection | source, adapters, config, lock, CI | 0, 3 on collision, 5 on budget |
-| `sync` | config, source, lock | adapters only | 0, 4 on drift or missing |
+| `init [dir]` | repo detection | source, adapters, config, lock, optional CI/devcontainer | 0, 5 on budget |
+| `sync` | config, source, lock | adapters, managed AGENTS.md block, merged settings | 0, 4 on drift or missing |
 | `check` | everything | nothing | 1 on drift or invalid policy |
 | `upgrade` | bundled templates, lock | 3-way merge result | 6 on conflict |
 | `add <pack>` | bundled packs | pack files, config | 1 if unknown |
@@ -45,15 +45,19 @@ Requirements: Node 20 or newer. No global install. No network after the package 
 
 ```text
 --yes                 accept detected defaults
---adapters <list>     agents-md, claude, cursor, copilot, codex, gemini, devin, aider
+--adapters <list>     claude, cursor, copilot, codex, gemini, cline, devin, aider
 --packs <list>        stack packs
 --strictness <level>  strict, balanced, loose (default strict)
+--ci                  add .github/workflows/agentic.yml
+--devcontainer        add .devcontainer/devcontainer.json
 --no-gitignore        do not edit .gitignore
 --force               overwrite, after backing up
 --dry-run             print the plan and stop
 ```
 
-`init` refuses to write into a non-empty target unless `--force`, or unless the only entries are `.git`, `README.md`, and dotfiles that do not collide.
+`init` works in a non-empty repository. Existing files are merged when a safe strategy exists (managed block, import line, JSON key union) and reported as skipped otherwise. It never replaces a file just because it already exists.
+
+`sync` rewrites generated adapter files, refreshes the managed block in `AGENTS.md`, and re-applies merges. It never touches `.agents/project.md`.
 
 ### `sync` flags
 
@@ -95,7 +99,7 @@ Machine-readable with `--json`.
 
 `agentic.config.json`, schema-validated. Unknown keys fail. See `01-architecture.md` for the shape.
 
-Precedence: CLI flag, then config, then detection, then default. During `init` the resolved choice is written to `agentic.config.json`, so later runs reuse it. `sync` and `add` update config only for packs.
+Precedence: CLI flag, then config, then detection, then default. With no flag, adapters come from folders already in the repo. If there are none, `adapters` stays empty and the neutral core still installs. During `init` the resolved choice is written to `agentic.config.json`, so later runs reuse it. `sync` fills missing commands from detection but never overwrites a command you set. `add` updates only packs.
 
 ## Lockfile
 
@@ -218,7 +222,7 @@ Removes `.agentic/`, `agentic.config.json`, and the CLI dependency if present. K
 |---|---|
 | 1 | general failure |
 | 2 | usage error |
-| 3 | collision, rerun with `--force` |
+| 3 | unused since 0.2.0, previously collision |
 | 4 | drift, run `sync` |
 | 5 | policy invalid |
 | 6 | conflict, resolve manually |

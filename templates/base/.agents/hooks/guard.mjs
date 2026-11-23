@@ -4,9 +4,11 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 
 const payload = await readPayload();
-const root = path.resolve(
+const projectRoot = path.resolve(
   process.env.AGENTIC_PROJECT_ROOT || process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd(),
 );
+// macOS and Linux temp dirs are often symlinks. Compare real paths on both sides.
+const root = realPathSyncSafe(projectRoot) || projectRoot;
 const tool = payload.tool_name || payload.toolName || '';
 const input = payload.tool_input || payload.toolInput || {};
 
@@ -22,10 +24,12 @@ try {
 
 const command = input.command || input.cmd || '';
 const filePath = input.file_path || input.filePath || input.path || input.notebook_path || '';
-const strictness = await readStrictness();
+const config = await readConfig();
+const strictness = strictnessOf(config);
+const testSafe = config?.project?.commands?.testSafe || '';
 
 if (tool === 'Bash' || command) {
-  const block = checkCommand(command, policy);
+  const block = checkCommand(command, policy, testSafe);
   if (block) deny(block);
   const question = checkAskCommand(command, policy);
   if (question) handleAsk(question, strictness);
@@ -40,7 +44,7 @@ if (filePath) {
 
 process.exit(0);
 
-function checkCommand(value, policy) {
+function checkCommand(value, policy, testSafe = '') {
   if (!value) return null;
 
   for (const pattern of policy.deny?.commands ?? []) {
@@ -73,9 +77,18 @@ function checkCommand(value, policy) {
     return 'path traversal outside the project is not allowed';
   }
 
-  const testPattern = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?test\b|\b(pytest|go\s+test|cargo\s+test|phpunit|rspec|jest|vitest)\b/;
-  if (testPattern.test(value) && !/test:safe/.test(value)) {
-    return 'run tests only with the test:safe command';
+  const testPattern =
+    /\b(npm|pnpm|yarn|bun)\s+(run\s+)?test\b|\b(pytest|go\s+test|cargo\s+test|phpunit|rspec|jest|vitest|php\s+artisan\s+test|node\s+--test|dotnet\s+test|mvn\s+test|gradlew?\s+test)\b/;
+  if (testPattern.test(value)) {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    const allowed =
+      (testSafe && normalized.includes(testSafe.replace(/\s+/g, ' ').trim())) ||
+      /test-safe\.mjs|test:safe/.test(normalized);
+    if (!allowed) {
+      return testSafe
+        ? `run tests only with: ${testSafe}`
+        : 'no test command is configured, do not run tests directly';
+    }
   }
 
   return null;
@@ -193,16 +206,17 @@ function deny(reason) {
   process.exit(2);
 }
 
-async function readStrictness() {
+async function readConfig() {
   try {
-    const config = JSON.parse(
-      await fs.readFile(path.join(root, 'agentic.config.json'), 'utf8'),
-    );
-    const level = config?.policy?.strictness;
-    return level === 'balanced' || level === 'loose' ? level : 'strict';
+    return JSON.parse(await fs.readFile(path.join(root, 'agentic.config.json'), 'utf8'));
   } catch {
-    return 'strict';
+    return null;
   }
+}
+
+function strictnessOf(config) {
+  const level = config?.policy?.strictness;
+  return level === 'balanced' || level === 'loose' ? level : 'strict';
 }
 
 async function readPayload() {

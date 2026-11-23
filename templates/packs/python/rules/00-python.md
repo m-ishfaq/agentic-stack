@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/*.py"
+  - "**/*.pyi"
+---
+
 # Python
 
 ## Types
@@ -21,7 +27,7 @@
 
 ## Tests
 
-- Use the project's test runner through `test:safe`.
+- Use the project's test runner through the configured testSafe command.
 - A fixture that touches a database points at the disposable one.
 - No network in unit tests. Mock at the boundary the project already mocks.
 

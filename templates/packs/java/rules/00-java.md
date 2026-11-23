@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/*.java"
+  - "**/*.kt"
+---
+
 # Java
 
 ## Style
@@ -25,7 +31,7 @@
 - Use the existing test framework.
 - One behavior per test, named after the behavior.
 - No test that depends on execution order.
-- Run through `test:safe` when a database is present.
+- Run through the configured testSafe command when a database is present.
 
 ## Checklist
 

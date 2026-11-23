@@ -17,7 +17,7 @@ A fix without a cause is a guess. Find the cause first.
 4. Test the hypothesis with one change or one log. Prefer a failing test.
 5. Fix the cause, not the symptom.
 6. Add a regression test that fails without the fix.
-7. Run `test:safe` and the related suite.
+7. Run the configured testSafe command, then the related suite.
 
 ## Rules
 

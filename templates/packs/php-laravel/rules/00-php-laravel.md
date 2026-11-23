@@ -1,3 +1,12 @@
+---
+paths:
+  - "app/**"
+  - "routes/**"
+  - "database/**"
+  - "resources/**"
+  - "config/**"
+---
+
 # PHP and Laravel
 
 ## Structure
@@ -30,7 +39,7 @@
 
 - Feature test for the route, unit test for the service.
 - Use factories, not raw inserts.
-- Run through `test:safe` with a `_test` database.
+- Run through the configured testSafe command with a `_test` database.
 
 ## Checklist
 

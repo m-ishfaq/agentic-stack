@@ -135,7 +135,7 @@ export function policyMarkdown(policy) {
   lines.push('');
   lines.push('## Tests');
   lines.push('');
-  lines.push('Run tests only with the `test:safe` command. It refuses a non-test database.');
+  lines.push('Run tests only with the configured testSafe command. It refuses a non-test database.');
   lines.push('');
   return lines.join('\n');
 }

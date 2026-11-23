@@ -89,15 +89,15 @@ agentic-stack/
 
 ```text
 1. Read flags and detect the project
-   lockfiles, manifests, CI, Dockerfile, workspace config
+   lockfiles, manifests, stacks, existing tool folders
 2. Ask only what detection cannot answer
-   which agents, strictness, packs, test command override
+   adapters, strictness, packs, test command override
 3. Build a plan in memory
-   every file, its source template, its rendered content, its hash
-4. Check collisions
-   existing paths are reported, not overwritten
+   every file, its source template, rendered content, and hash
+4. Resolve existing paths per file
+   managed block, import line, JSON union, skip, or --force with backup
 5. Write atomically
-   temp directory, then move. backup to .agentic/backups/<timestamp>/
+   backup to .agentic/backups/<timestamp>/ before a replacement
 6. Write .agentic/lock.json and agentic.config.json
 7. Print next steps, including the one manual action: git add
 ```

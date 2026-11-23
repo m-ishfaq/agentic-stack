@@ -39,7 +39,7 @@ function parseFlags(list) {
       continue;
     }
     const key = item.slice(2);
-    if (['yes', 'force', 'dry-run', 'json', 'help', 'version'].includes(key)) {
+    if (['yes', 'force', 'dry-run', 'json', 'help', 'version', 'ci', 'devcontainer'].includes(key)) {
       result[key] = true;
       continue;
     }
@@ -88,6 +88,8 @@ async function init() {
     gitignore: !flags['no-gitignore'],
     force: Boolean(flags.force),
     dryRun: Boolean(flags['dry-run']),
+    ci: Boolean(flags.ci),
+    devcontainer: Boolean(flags.devcontainer),
   };
 
   if (options.strictness && !VALID_STRICTNESS.includes(options.strictness)) {
@@ -97,13 +99,6 @@ async function init() {
   }
 
   const plan = await initProject(root, { ...options, dryRun: true });
-  if (!plan.ok && plan.collisions && !options.force) {
-    console.error('Files already exist and differ:\n');
-    for (const file of plan.collisions) console.error(`  ${file}`);
-    console.error('\nNothing was written. Re-run with --force to back up and replace.');
-    process.exitCode = 3;
-    return;
-  }
   if (!plan.ok) {
     for (const problem of plan.problems ?? []) console.error(problem);
     process.exitCode = plan.exitCode ?? 1;
@@ -113,6 +108,14 @@ async function init() {
   if (options.dryRun) {
     console.log('Plan only. Nothing written.\n');
     for (const file of plan.files) console.log(`  ${file.path}`);
+    if (plan.merged?.length > 0) {
+      console.log('\nWould merge into existing files:');
+      for (const file of plan.merged) console.log(`  ${file}`);
+    }
+    if (plan.skipped?.length > 0) {
+      console.log('\nWould leave existing files alone:');
+      for (const file of plan.skipped) console.log(`  ${file}`);
+    }
     return;
   }
 
@@ -132,14 +135,28 @@ async function init() {
     return;
   }
 
-  console.log(`\nInstalled ${result.written.length} files.\n`);
-  console.log('Adapters: ' + result.config.adapters.join(', '));
+  console.log(`\nInstalled ${result.written.length} files.`);
+  if (result.merged?.length > 0) {
+    console.log(`Merged into ${result.merged.length} existing files:`);
+    for (const file of result.merged) console.log(`  ${file}`);
+  }
+  if (result.skipped?.length > 0) {
+    console.log(`Left ${result.skipped.length} existing files untouched:`);
+    for (const file of result.skipped) console.log(`  ${file}`);
+  }
+  const adapters = result.config.adapters;
+  console.log(`\nAdapters: ${adapters.length > 0 ? adapters.join(', ') : 'none selected'}`);
   console.log('Rules:    .agents/rules/');
   console.log('Skills:   .agents/skills/');
   console.log('Policy:   .agents/policies/deny.json');
+  if (adapters.length === 0) {
+    console.log('\nNo tool adapter selected. AGENTS.md and .agents/ work as is.');
+    console.log('Add tool output later with: agentic init . --adapters claude,cursor');
+  }
   console.log('\nNext, you run:');
   console.log('  git status');
-  console.log('  git add .agents AGENTS.md agentic.config.json .agentic .claude .cursor .github');
+  console.log('  git add .agents AGENTS.md agentic.config.json .agentic');
+  if (adapters.length > 0) console.log(`  git add ${adapterPaths(adapters, root).join(' ')}`);
   console.log('  git commit -m "chore: add agentic-stack"');
   console.log('\nAgents never commit or push. That stays with you.');
 }
@@ -253,7 +270,35 @@ async function doctor() {
   for (const item of result.checks) {
     console.log(`${item.ok ? 'ok  ' : 'FAIL'}  ${item.name}  ${item.detail}`);
   }
+  if (result.adapters?.length > 0) {
+    console.log('\nAdapters:');
+    for (const row of result.adapters) {
+      console.log(
+        `  ${row.adapter.padEnd(8)} rules ${row.rules}  skills ${row.skills}  commands ${row.commands}  hooks ${row.hooks}`,
+      );
+    }
+  } else {
+    console.log('\nAdapters: none. AGENTS.md is the only instruction file.');
+  }
   if (!result.ok) process.exitCode = 1;
+}
+
+function adapterPaths(adapters, root = process.cwd()) {
+  const paths = new Set();
+  const map = {
+    claude: ['CLAUDE.md', '.claude', '.mcp.json'],
+    cursor: ['.cursor'],
+    copilot: ['.github'],
+    codex: ['.codex'],
+    gemini: ['GEMINI.md', '.gemini'],
+    cline: ['.clinerules'],
+    devin: ['.devin'],
+    aider: ['CONVENTIONS.md', '.aider.conf.yml'],
+  };
+  for (const adapter of adapters) {
+    for (const item of map[adapter] ?? []) paths.add(item);
+  }
+  return [...paths].filter((item) => existsSync(path.join(root, item)));
 }
 
 async function confirm(question) {
@@ -278,9 +323,11 @@ Usage:
 
 Options:
   --yes                 accept defaults, no prompt
-  --adapters <list>     claude,cursor,copilot,codex,gemini,devin,aider
+  --adapters <list>     claude,cursor,copilot,codex,gemini,cline,devin,aider
   --packs <list>        typescript,react-next,python,go,php-laravel,java,rust,docker,monorepo,mobile
   --strictness <level>  strict, balanced, loose
+  --ci                  add a GitHub Actions check workflow
+  --devcontainer        add a devcontainer definition
   --no-gitignore        do not edit .gitignore
   --restore             recreate generated files deleted by hand
   --dry-run             print the plan, write nothing

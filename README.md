@@ -6,7 +6,7 @@
 
 One command gives any project a safe, consistent AI coding setup: rules, skills, hooks, policies, and tool adapters.
 
-<img src="docs/demo.gif" alt="Terminal demo: install agentic-stack, npm test is blocked, npm run test:safe passes" width="880">
+<img src="docs/demo.gif" alt="Terminal demo: install agentic-stack, npm test is blocked, the configured testSafe command passes" width="880">
 
 ```bash
 npx agentic-stack@latest init
@@ -14,7 +14,7 @@ npx agentic-stack@latest init
 
 Node 20 or newer. No global install. No telemetry.
 
-Works with Claude Code, Cursor, Copilot, Codex, Gemini, Devin, and Aider.
+Works with Claude Code, Cursor, Copilot, Codex, Gemini, Cline, Devin, and Aider. The core install is tool-neutral: `AGENTS.md` and `.agents/` work even when you select no adapter.
 
 ## Why
 
@@ -40,11 +40,16 @@ npx agentic-stack@latest init --adapters claude,cursor --packs typescript
 npx agentic-stack@latest init --dry-run
 ```
 
-Then commit the setup:
+Add CI or a devcontainer only when you want them:
 
 ```bash
-git add .agents AGENTS.md agentic.config.json .agentic .claude .cursor .github
-git commit -m "chore: add agentic-stack"
+npx agentic-stack@latest init --yes --ci --devcontainer
+```
+
+Then commit the setup. The CLI prints the exact `git add` line for your adapters:
+
+```bash
+git add .agents AGENTS.md agentic.config.json .agentic
 ```
 
 The agent never commits or pushes. You keep git.
@@ -52,31 +57,39 @@ The agent never commits or pushes. You keep git.
 ## What lands in your project
 
 ```text
-AGENTS.md                  short always-on router
+AGENTS.md                  short always-on router for any agent
 .agents/
+  project.md               project brain: domain rules, users, layout, services
   rules/                   response, workflow, quality, testing, git, security, docs, context, data
   skills/<name>/SKILL.md   procedures, loaded only when needed
+  agents/                  review and security subagent definitions
   commands/                /spec /plan /build /review /test /fix /ship /handoff
   hooks/                   portable Node scripts, no bash-only code
   policies/deny.json       deny, ask, scope, and test database rules
   scripts/test-safe.mjs    test runner that refuses dev and prod databases
+  mcp.json                 opt-in MCP servers, never seeded with one
   templates/               spec, plan, ADR, PR, bug, handoff
   memory/                  decisions and current task state
-agentic.config.json        adapters, packs, budgets
+agentic.config.json        adapters, packs, extras, budgets
 .agentic/lock.json         template version and file hashes
 ```
 
 `AGENTS.md` and `.agents/` are the source of truth. Tool files are generated from them and carry a "do not edit" header.
 
-| Tool | Files |
-|---|---|
-| Claude Code | `CLAUDE.md`, `.claude/settings.json`, skills, commands |
-| Cursor | `.cursor/rules/`, `.cursor/mcp.json` |
-| GitHub Copilot | `.github/copilot-instructions.md`, `.github/instructions/` |
-| Codex | `AGENTS.md`, `CLAUDE.md` |
-| Gemini | `GEMINI.md` |
-| Devin | `.devin/rules/` |
-| Aider | `CONVENTIONS.md`, `.aider.conf.yml` |
+Adapters are selected by flag, or detected from folders already in the repo. With none selected, the install is still complete: `AGENTS.md` and `.agents/` are read by Codex, Cline, and other agents directly.
+
+| Tool | Files | Rules | Skills | Commands | Hooks | MCP |
+|---|---|---|---|---|---|---|
+| Claude Code | `CLAUDE.md` (imports AGENTS.md), `.claude/settings.json`, `.claude/rules/`, `.claude/agents/` | yes | yes | yes | yes | `.mcp.json` |
+| Cursor | `.cursor/rules/`, `.cursor/mcp.json` | yes | via rules | no | no | yes |
+| GitHub Copilot | `.github/copilot-instructions.md`, `.github/instructions/` | yes | no | no | no | editor |
+| Codex | `AGENTS.md`, `.agents/skills/`, `.codex/config.toml` | yes | yes | no | no | yes |
+| Gemini | `GEMINI.md`, `.gemini/commands/`, `.gemini/settings.json` | yes | yes | yes | no | yes |
+| Cline | `AGENTS.md`, `.clinerules/` | yes | no | no | no | no |
+| Devin | `.devin/rules/` (Windsurf fallback) | yes | no | no | no | no |
+| Aider | `CONVENTIONS.md`, `.aider.conf.yml` | yes | manual | no | git | no |
+
+No provider supports every surface, so the installer writes only what the tool reads. MCP files are written only when `.agents/mcp.json` contains a server. Everything lives in `.agents/`, so switching tools later loses nothing. `agentic doctor` prints this table for the adapters you selected.
 
 ## Safety model
 
@@ -88,8 +101,8 @@ Every rule exists twice: as guidance, then as enforcement.
 | Hooks | block off-limits commands and paths before they run |
 | Policy file | one deny, ask, and allow list, translated per tool |
 | Test runner | throwaway database only, refuses dev or prod targets |
-| CI | runs the same checks where hooks do not exist, plus a secret scan |
-| Devcontainer | project-only access, no home secrets, no host database |
+| CI (opt-in) | runs `agentic check` where hooks do not exist |
+| Devcontainer (opt-in) | project-only access, no home secrets, no host database |
 
 Denied at every strictness level:
 
@@ -126,9 +139,11 @@ agentic doctor [dir]      check Node, git, config, and hook files
 agentic eject [dir]       remove CLI metadata, keep every installed file
 ```
 
-`init` flags: `--yes`, `--adapters`, `--packs`, `--strictness`, `--no-gitignore`, `--force`, `--dry-run`.
+`init` flags: `--yes`, `--adapters`, `--packs`, `--strictness`, `--ci`, `--devcontainer`, `--no-gitignore`, `--force`, `--dry-run`.
 
-Exit codes: `0` ok, `2` usage, `3` collision, `4` drift or missing files, `5` budget overrun, `6` upgrade conflict.
+Existing files are merged or left alone, never silently replaced. `AGENTS.md` gets a managed block, `CLAUDE.md` gets an `@AGENTS.md` import, and JSON settings keep your keys while adding the guard hooks. Files we cannot merge are listed as skipped. `--force` backs up and replaces.
+
+Exit codes: `0` ok, `2` usage, `4` drift or missing files, `5` budget overrun, `6` upgrade conflict.
 
 ## Stack packs
 
@@ -143,14 +158,29 @@ Packs add rules for one ecosystem. Install with `--packs`, or later with `agenti
 ```json
 {
   "version": 1,
-  "adapters": ["claude", "cursor", "copilot"],
-  "packs": ["typescript"],
+  "project": {
+    "name": "my-app",
+    "stack": "Laravel (PHP) + Node.js",
+    "packageManager": "composer",
+    "commands": {
+      "install": "composer install",
+      "dev": "composer run dev",
+      "test": "php artisan test",
+      "testSafe": "node .agents/scripts/test-safe.mjs",
+      "lint": "vendor/bin/pint --test",
+      "typecheck": null,
+      "build": null
+    }
+  },
+  "adapters": [],
+  "packs": ["php-laravel"],
+  "extras": { "ci": false, "devcontainer": false },
   "policy": { "strictness": "strict", "scope": "project" },
   "budgets": { "agentsMdLines": 150, "alwaysOnTokens": 4000 }
 }
 ```
 
-Precedence: CLI flag, config, detection, default. `init` writes the result, so later runs reuse it.
+Detection covers Node, PHP/Laravel, Python, Go, Rust, and Java, plus common lockfiles. Missing commands stay `null`; templates print `not configured` instead of inventing one. Precedence: CLI flag, config, detection, default. `init` writes the result, so later runs reuse it.
 
 ## Upgrading
 
@@ -164,7 +194,7 @@ Backups from `--force` and upgrades live in `.agentic/backups/`, which is gitign
 
 ## Status
 
-Phase 3 MVP. Working today: install, seven adapters, ten packs, drift checks, guard hooks, safe test runner, upgrade with conflict files, `add`, `eject`, a devcontainer, and CI for installed projects.
+Working today: neutral install, eight adapters, ten packs, non-destructive merges, drift checks, guard hooks, safe test runner, upgrade with conflict files, `add`, `eject`, and opt-in CI and devcontainer files.
 
 Planned: a pack registry with checksums, a standalone `agentic-stack/check` GitHub Action, organization template sync, and policy presets. See `docs/06-roadmap.md`.
 
@@ -211,13 +241,13 @@ node packages/cli/bin/agentic.js init .tmp/demo --yes
 
 ## Release
 
-1. Bump `version` in `packages/cli/package.json`.
+1. Bump `version` in `packages/cli/package.json`, `packages/core/package.json`, and `packages/core/src/version.js`.
 2. Commit and push to `main`.
 3. Push a matching tag.
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 The `publish` workflow runs tests and evals, checks the tag against the package version, then publishes with provenance. Add `NPM_TOKEN` as a repository secret first.

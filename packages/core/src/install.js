@@ -3,12 +3,11 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  baseRules,
   buildAdapterFiles,
   buildBaseFiles,
-  buildCopilotFiles,
-  buildCursorFiles,
+  installedAgents,
   installedCommands,
+  installedMcpServers,
   installedRules,
   installedSkills,
   loadPackFiles,
@@ -16,6 +15,7 @@ import {
 import { CONFIG_FILE, defaultConfig, loadConfig, saveConfig } from './config.js';
 import { detectProject } from './detect.js';
 import { readLock, writeLock } from './lock.js';
+import { mergeTarget, wrapNewManaged } from './merge.js';
 import { loadPolicy } from './policy.js';
 import { budgetProblems } from './render.js';
 import { pathExists, sha256, withinRoot } from './util.js';
@@ -34,15 +34,23 @@ export async function planInstall(root, options = {}) {
   const detected = await detectProject(root);
   const existing = await loadConfig(root);
   const config = existing ?? defaultConfig(detected);
+
   if (options.adapters) config.adapters = options.adapters;
+  else if (!existing && detected.adapters.length > 0) config.adapters = detected.adapters;
+
   if (options.packs) config.packs = options.packs;
   if (options.strictness) config.policy.strictness = options.strictness;
+  if (options.ci !== undefined) config.extras = { ...config.extras, ci: options.ci };
+  if (options.devcontainer !== undefined) {
+    config.extras = { ...config.extras, devcontainer: options.devcontainer };
+  }
+
   config.project = {
     ...config.project,
     name: config.project.name || detected.name,
-    stack: detected.stack,
-    packageManager: detected.packageManager,
-    commands: detected.commands,
+    stack: config.project.stack ?? detected.stack ?? null,
+    packageManager: config.project.packageManager ?? detected.packageManager ?? null,
+    commands: fillNulls(config.project.commands ?? {}, detected.commands),
   };
 
   const templatesBase = options.templatesBase ?? templatesBasePath();
@@ -51,16 +59,24 @@ export async function planInstall(root, options = {}) {
     config,
     version: VERSION,
     sourceDir: await detectSourceDir(root),
+    extras: config.extras ?? {},
   });
   const packFiles = await loadPackFiles(templatesBase, config.packs);
   const policy = JSON.parse(
     await fs.readFile(path.join(templatesBase, '.agents', 'policies', 'deny.json'), 'utf8'),
   );
   const allBase = [...baseFiles, ...packFiles];
-  const rules = baseRules(allBase);
+  const rules = baseRulesFromFiles(allBase);
   const skills = skillsFromFiles(baseFiles);
   const commands = commandsFromFiles(baseFiles);
-  const agentsContent = baseFiles.find((file) => file.path === 'AGENTS.md')?.content ?? '';
+  const agents = agentsFromFiles(baseFiles);
+  const agentsContent = stripManaged(
+    baseFiles.find((file) => file.path === 'AGENTS.md')?.content ?? '',
+  );
+  const mcpServers = {
+    ...mcpServersFromFiles(baseFiles),
+    ...(existing ? await installedMcpServers(root) : {}),
+  };
 
   const files = [
     ...allBase,
@@ -70,15 +86,11 @@ export async function planInstall(root, options = {}) {
       rules,
       skills,
       commands,
+      agents,
       agentsContent,
+      mcpServers,
     }),
   ];
-  if (config.adapters.includes('cursor')) {
-    files.push(...buildCursorFiles({ rules, policy, version: VERSION }));
-  }
-  if (config.adapters.includes('copilot')) {
-    files.push(...buildCopilotFiles({ agentsContent, rules, policy, version: VERSION }));
-  }
 
   return { config, files, detected, templatesBase, policy };
 }
@@ -94,58 +106,114 @@ export async function initProject(root, options = {}) {
   }
 
   const lock = await readLock(target);
-  const collisions = [];
-  for (const file of files) {
-    const full = path.join(target, file.path);
-    if (!withinRoot(target, full)) {
-      return {
-        ok: false,
-        exitCode: 1,
-        problems: [`refusing to write outside root: ${file.path}`],
-        written: [],
-      };
-    }
-    if (!(await pathExists(full))) continue;
-    const existing = await fs.readFile(full, 'utf8');
-    if (existing === file.content) continue;
-    const locked = lock?.files?.[file.path]?.sha256;
-    if (locked && sha256(existing) === locked) continue;
-    collisions.push(file.path);
-  }
-
-  if (collisions.length > 0 && !options.force) {
-    return { ok: false, exitCode: 3, collisions, problems: [], written: [], config };
-  }
+  const plan = await planWrites(target, files, options, lock);
+  if (!plan.ok) return { ...plan, written: [], config };
 
   if (options.dryRun) {
-    return { ok: true, exitCode: 0, dryRun: true, files, collisions, written: [], config };
+    return {
+      ok: true,
+      exitCode: 0,
+      dryRun: true,
+      files,
+      collisions: [],
+      written: [],
+      merged: plan.merged,
+      skipped: plan.skipped,
+      config,
+    };
   }
 
   const backupDir = path.join(target, '.agentic', 'backups', timestamp());
   const written = [];
-  for (const file of files) {
-    const full = path.join(target, file.path);
-    if (collisions.includes(file.path) && (await pathExists(full))) {
-      const backup = path.join(backupDir, file.path);
+  const entries = {};
+  for (const item of plan.writes) {
+    const full = path.join(target, item.file.path);
+    if (item.backup && (await pathExists(full))) {
+      const backup = path.join(backupDir, item.file.path);
       await fs.mkdir(path.dirname(backup), { recursive: true });
       await fs.copyFile(full, backup);
     }
     await fs.mkdir(path.dirname(full), { recursive: true });
-    await fs.writeFile(full, file.content, 'utf8');
-    written.push(file.path);
+    await fs.writeFile(full, item.content, 'utf8');
+    written.push(item.file.path);
+    entries[item.file.path] = {
+      sha256: sha256(item.content),
+      source: item.file.source,
+      generated: item.file.generated,
+      ...(item.file.merge ? { managed: true } : {}),
+    };
+  }
+
+  for (const [filePath, meta] of Object.entries(lock?.files ?? {})) {
+    if (entries[filePath]) continue;
+    if (plan.skipped.includes(filePath)) continue;
+    if (await pathExists(path.join(target, filePath))) {
+      entries[filePath] = meta;
+    }
   }
 
   if (options.gitignore !== false) await ensureGitignore(target);
   await saveConfig(target, config);
-  await writeLock(target, files, {
-    templateVersion: VERSION,
-    cliVersion: VERSION,
-    generatedAt: new Date().toISOString(),
-    adapters: config.adapters,
-    packs: config.packs,
+  await writeLock(target, [], {
+    ...lockMeta(lock, config),
+    files: entries,
   });
 
-  return { ok: true, exitCode: 0, written, config, detected, collisions };
+  return {
+    ok: true,
+    exitCode: 0,
+    written,
+    merged: plan.merged,
+    skipped: plan.skipped,
+    collisions: [],
+    config,
+    detected,
+  };
+}
+
+function newFileContent(file) {
+  return wrapNewManaged(file.path, file.content);
+}
+
+async function planWrites(target, files, options, lock) {
+  const writes = [];
+  const merged = [];
+  const skipped = [];
+
+  for (const file of files) {
+    const full = path.join(target, file.path);
+    if (!withinRoot(target, full)) {
+      return { ok: false, exitCode: 1, problems: [`refusing to write outside root: ${file.path}`] };
+    }
+    if (!(await pathExists(full))) {
+      writes.push({ file, content: newFileContent(file), backup: false });
+      continue;
+    }
+    const existing = await fs.readFile(full, 'utf8');
+    if (existing === file.content) continue;
+
+    if (options.force) {
+      writes.push({ file, content: newFileContent(file), backup: true });
+      continue;
+    }
+
+    const locked = lock?.files?.[file.path]?.sha256;
+    if (!file.merge && locked && sha256(existing) === locked) {
+      writes.push({ file, content: newFileContent(file), backup: false });
+      continue;
+    }
+
+    const mergedContent = file.merge ? mergeTarget(file.path, existing, file.content) : null;
+    if (mergedContent === null) {
+      skipped.push(file.path);
+      continue;
+    }
+    if (mergedContent === existing) continue;
+    merged.push(file.path);
+    writes.push({ file, content: mergedContent, backup: true });
+  }
+
+  return { ok: true, writes, merged, skipped };
 }
 
 export async function syncProject(root, options = {}) {
@@ -154,12 +222,21 @@ export async function syncProject(root, options = {}) {
   if (!config) throw new Error(`missing ${CONFIG_FILE}. Run agentic init first.`);
   const policy = await loadPolicy(target);
   const detected = await detectProject(target);
-  config.project = { ...config.project, commands: detected.commands };
 
-  const agentsContent = await fs.readFile(path.join(target, 'AGENTS.md'), 'utf8');
+  config.project = { ...config.project, stack: config.project.stack ?? detected.stack ?? null };
+  config.project.packageManager =
+    config.project.packageManager ?? detected.packageManager ?? null;
+  config.project.commands = fillNulls(config.project.commands ?? {}, detected.commands);
+
+  const currentAgents = (await pathExists(path.join(target, 'AGENTS.md')))
+    ? await fs.readFile(path.join(target, 'AGENTS.md'), 'utf8')
+    : '';
+  const agentsContent = stripManaged(currentAgents);
   const rules = await installedRules(target);
   const skills = await installedSkills(target);
   const commands = await installedCommands(target);
+  const agents = await installedAgents(target);
+  const mcpServers = await installedMcpServers(target);
 
   let files = buildAdapterFiles({
     config,
@@ -167,54 +244,64 @@ export async function syncProject(root, options = {}) {
     rules,
     skills,
     commands,
+    agents,
     agentsContent,
+    mcpServers,
   });
-  if (config.adapters.includes('cursor')) {
-    files = files.concat(buildCursorFiles({ rules, policy, version: VERSION }));
-  }
-  if (config.adapters.includes('copilot')) {
-    files = files.concat(buildCopilotFiles({ agentsContent, rules, policy, version: VERSION }));
-  }
+
+  const templatesBase = options.templatesBase ?? templatesBasePath();
+  const baseFiles = await buildBaseFiles({
+    templatesBase,
+    config,
+    version: VERSION,
+    sourceDir: await detectSourceDir(target),
+    extras: {},
+  });
+  const agentsFile = baseFiles.find((file) => file.path === 'AGENTS.md');
+  if (agentsFile) files = [agentsFile, ...files];
 
   const lock = await readLock(target);
+  const entries = { ...(lock?.files ?? {}) };
   const drift = [];
   const missing = [];
   const written = [];
+
   for (const file of files) {
     const full = path.join(target, file.path);
     const previous = lock?.files?.[file.path];
     const current = (await pathExists(full)) ? await fs.readFile(full, 'utf8') : null;
 
     if (current === null && previous) {
-      // A human removed a generated file. Leave it alone unless asked to restore.
       if (!options.restore) {
         missing.push(file.path);
         continue;
       }
+    } else if (file.merge && current !== null) {
+      const merged = mergeTarget(file.path, current, file.content);
+      if (merged === null || merged === current) continue;
+      if (!options.dryRun) {
+        await fs.writeFile(full, merged, 'utf8');
+        written.push(file.path);
+      }
+      entries[file.path] = lockEntry(file, merged);
+      continue;
     } else if (previous && current !== null && sha256(current) !== previous.sha256) {
       drift.push(file.path);
       continue;
     }
 
-    if (current === file.content) continue;
+    const content = newFileContent(file);
+    if (current === content) continue;
     if (!options.dryRun) {
       await fs.mkdir(path.dirname(full), { recursive: true });
-      await fs.writeFile(full, file.content, 'utf8');
+      await fs.writeFile(full, content, 'utf8');
       written.push(file.path);
     }
+    entries[file.path] = lockEntry(file, content);
   }
 
   if (!options.dryRun && written.length > 0) {
-    const entries = { ...(lock?.files ?? {}) };
-    for (const filePath of written) {
-      const file = files.find((item) => item.path === filePath);
-      entries[file.path] = {
-        sha256: sha256(file.content),
-        source: file.source,
-        generated: file.generated,
-      };
-    }
-    await writeLockEntries(target, entries, lock);
+    await writeLock(target, [], { ...lockMeta(lock, config), files: entries });
   }
 
   await saveConfig(target, config);
@@ -250,18 +337,6 @@ export async function addProject(root, pack, options = {}) {
   if (!options.dryRun) {
     config.packs = [...config.packs, pack];
     await saveConfig(target, config);
-    const lock = await readLock(target);
-    if (lock) {
-      const entries = { ...lock.files };
-      for (const file of files) {
-        entries[file.path] = {
-          sha256: sha256(file.content),
-          source: file.source,
-          generated: file.generated,
-        };
-      }
-      await writeLockEntries(target, entries, lock);
-    }
   }
   return { already: false, added, config };
 }
@@ -299,16 +374,27 @@ export async function upgradeProject(root, options = {}) {
     const current = (await pathExists(full)) ? await fs.readFile(full, 'utf8') : null;
 
     if (current === null) {
+      const content = newFileContent(file);
       if (!options.dryRun) {
         await fs.mkdir(path.dirname(full), { recursive: true });
-        await fs.writeFile(full, file.content, 'utf8');
+        await fs.writeFile(full, content, 'utf8');
       }
-      entries[file.path] = entry(file, newHash);
+      entries[file.path] = lockEntry(file, content);
       added.push(file.path);
       continue;
     }
 
     if (current === file.content) continue;
+
+    if (file.merge) {
+      const merged = mergeTarget(file.path, current, file.content) ?? file.content;
+      if (merged === current) continue;
+      if (!options.dryRun) await fs.writeFile(full, merged, 'utf8');
+      entries[file.path] = lockEntry(file, merged);
+      updated.push(file.path);
+      continue;
+    }
+
     const currentHash = sha256(current);
 
     if (!previous) {
@@ -319,7 +405,7 @@ export async function upgradeProject(root, options = {}) {
 
     if (currentHash === previous.sha256) {
       if (!options.dryRun) await fs.writeFile(full, file.content, 'utf8');
-      entries[file.path] = entry(file, newHash);
+      entries[file.path] = lockEntry(file, file.content);
       updated.push(file.path);
       continue;
     }
@@ -333,12 +419,35 @@ export async function upgradeProject(root, options = {}) {
     await saveConflict(conflictDir, file, options);
   }
 
-  if (!options.dryRun) await writeLockEntries(target, entries, lock);
+  if (!options.dryRun) await writeLock(target, [], { ...lockMeta(lock), files: entries });
   return { added, updated, conflicts, kept, conflictDir };
 }
 
-function entry(file, hash) {
-  return { sha256: hash, source: file.source, generated: file.generated };
+function lockMeta(lock, config) {
+  return {
+    templateVersion: lock?.templateVersion ?? VERSION,
+    cliVersion: VERSION,
+    generatedAt: new Date().toISOString(),
+    adapters: config?.adapters ?? lock?.adapters ?? [],
+    packs: config?.packs ?? lock?.packs ?? [],
+  };
+}
+
+function lockEntry(file, content) {
+  return {
+    sha256: sha256(content),
+    source: file.source,
+    generated: file.generated,
+    ...(file.merge ? { managed: true } : {}),
+  };
+}
+
+function fillNulls(current, detected) {
+  const result = { ...current };
+  for (const [key, value] of Object.entries(detected ?? {})) {
+    if (result[key] == null) result[key] = value;
+  }
+  return result;
 }
 
 async function saveConflict(dir, file, options) {
@@ -346,6 +455,12 @@ async function saveConflict(dir, file, options) {
   const target = path.join(dir, `${file.path}.new`);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, file.content, 'utf8');
+}
+
+function baseRulesFromFiles(files) {
+  return files
+    .filter((file) => file.path.startsWith('.agents/rules/') && file.path.endsWith('.md'))
+    .map((file) => ({ name: path.basename(file.path, '.md'), content: file.content }));
 }
 
 function skillsFromFiles(files) {
@@ -364,6 +479,31 @@ function commandsFromFiles(files) {
     if (match) commands.push({ name: match[1], content: file.content });
   }
   return commands;
+}
+
+function agentsFromFiles(files) {
+  const agents = [];
+  for (const file of files) {
+    const match = file.path.match(/^\.agents\/agents\/([^/]+)\.md$/);
+    if (match) agents.push({ name: match[1], content: file.content });
+  }
+  return agents;
+}
+
+function mcpServersFromFiles(files) {
+  const file = files.find((item) => item.path === '.agents/mcp.json');
+  if (!file) return {};
+  try {
+    return JSON.parse(file.content).mcpServers ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function stripManaged(text) {
+  return text
+    .replace(/<!-- agentic-stack:begin -->\r?\n?/g, '')
+    .replace(/<!-- agentic-stack:end -->\r?\n?/g, '');
 }
 
 export async function detectSourceDir(root) {
@@ -394,19 +534,4 @@ async function ensureGitignore(root) {
 
 function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
-}
-
-async function writeLockEntries(root, entries, previous) {
-  const lock = {
-    lockVersion: 1,
-    templateVersion: previous?.templateVersion ?? VERSION,
-    cliVersion: VERSION,
-    generatedAt: new Date().toISOString(),
-    adapters: previous?.adapters ?? [],
-    packs: previous?.packs ?? [],
-    files: entries,
-  };
-  const target = path.join(root, '.agentic', 'lock.json');
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
 }

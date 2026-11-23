@@ -4,7 +4,16 @@ import { pathExists } from './util.js';
 
 export const CONFIG_FILE = 'agentic.config.json';
 
-export const VALID_ADAPTERS = ['claude', 'cursor', 'copilot', 'codex', 'gemini', 'devin', 'aider'];
+export const VALID_ADAPTERS = [
+  'claude',
+  'cursor',
+  'copilot',
+  'codex',
+  'gemini',
+  'cline',
+  'devin',
+  'aider',
+];
 export const VALID_STRICTNESS = ['strict', 'balanced', 'loose'];
 
 export function defaultConfig(project) {
@@ -16,8 +25,12 @@ export function defaultConfig(project) {
       packageManager: project.packageManager,
       commands: project.commands,
     },
-    adapters: ['claude', 'cursor', 'copilot'],
+    adapters: project.adapters ?? [],
     packs: project.packs ?? [],
+    extras: {
+      ci: false,
+      devcontainer: false,
+    },
     policy: {
       strictness: 'strict',
       scope: 'project',
@@ -53,6 +66,17 @@ export function validateConfig(config) {
     if (!VALID_ADAPTERS.includes(adapter)) throw new Error(`unknown adapter: ${adapter}`);
   }
   if (!Array.isArray(config.packs)) throw new Error('config.packs must be an array');
+  for (const key of ['stack', 'packageManager']) {
+    const value = config.project[key];
+    if (value !== undefined && value !== null && typeof value !== 'string') {
+      throw new Error(`config.project.${key} must be a string or null`);
+    }
+  }
+  for (const [name, value] of Object.entries(config.project.commands ?? {})) {
+    if (value !== null && typeof value !== 'string') {
+      throw new Error(`config.project.commands.${name} must be a string or null`);
+    }
+  }
   const strictness = config.policy?.strictness;
   if (strictness !== undefined && !VALID_STRICTNESS.includes(strictness)) {
     throw new Error(`unknown strictness: ${strictness}. Use ${VALID_STRICTNESS.join(', ')}`);

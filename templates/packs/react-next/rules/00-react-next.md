@@ -1,3 +1,13 @@
+---
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "app/**"
+  - "pages/**"
+  - "src/app/**"
+  - "src/pages/**"
+---
+
 # React and Next.js
 
 ## Server and client

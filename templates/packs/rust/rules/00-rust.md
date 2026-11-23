@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.rs"
+---
+
 # Rust
 
 ## Errors
@@ -24,7 +29,7 @@
 
 - Unit tests in the module, integration tests in `tests/`.
 - Use `?` in tests that return `Result`.
-- Run `cargo test` through `test:safe` when a database is involved.
+- Run `cargo test` through the configured testSafe command when a database is involved.
 
 ## Checklist
 

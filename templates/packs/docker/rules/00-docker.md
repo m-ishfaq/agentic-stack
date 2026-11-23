@@ -1,3 +1,11 @@
+---
+paths:
+  - "Dockerfile"
+  - "**/Dockerfile"
+  - "docker-compose*.yml"
+  - "compose*.yml"
+---
+
 # Docker
 
 ## Images
