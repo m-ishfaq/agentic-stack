@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "scope": {
+    "denyOutsideRoot": true,
+    "allowHome": false,
+    "followSymlinks": false,
+    "denyParentTraversal": true
+  },
+  "deny": {
+    "commands": [
+      "^git\\s+(add|commit|push|tag|merge|rebase|reset|stash|cherry-pick|clean|checkout|switch|restore|branch\\s+-[dD])",
+      "\\bgh\\s+pr\\s+create\\b",
+      "^(npm|pnpm|yarn|bun)\\s+publish\\b",
+      "^(vercel|netlify|flyctl|heroku|aws|gcloud|az|kubectl|terraform|docker\\s+push)\\b",
+      "^(psql|mysql|mongosh|mongo|redis-cli|sqlite3)\\b",
+      "^(prisma\\s+db\\s+(push|seed)|prisma\\s+migrate\\s+(deploy|reset))",
+      "^(sequelize\\s+db:migrate|knex\\s+migrate|alembic\\s+upgrade|artisan\\s+migrate|rails\\s+db:)",
+      "^(npm|pnpm|yarn|bun)\\s+run\\s+(db:)?(migrate|seed|reset)\\b",
+      "\\b(TRUNCATE|DROP\\s+(TABLE|DATABASE|SCHEMA))\\b",
+      "^(sudo|su\\b|chmod\\s+777)",
+      "^rm\\s+-[a-zA-Z]*[rf]"
+    ],
+    "paths": [
+      ".env",
+      ".env.*",
+      "!.env.example",
+      "!.env.*.example",
+      "**/secrets/**",
+      "**/*.pem",
+      "**/*.key",
+      ".git/**",
+      ".agentic/logs/**",
+      ".agentic/backups/**"
+    ],
+    "home": [
+      "~/.ssh/**",
+      "~/.aws/**",
+      "~/.config/gcloud/**",
+      "~/.npmrc",
+      "~/.pypirc",
+      "~/.docker/config.json"
+    ],
+    "network": {
+      "ports": [5432, 3306, 27017, 6379],
+      "allowHosts": ["127.0.0.1", "localhost", "::1"]
+    }
+  },
+  "ask": {
+    "commands": [
+      "^(npm|pnpm|yarn|bun|pip|poetry|uv|composer|go|cargo|gem)\\s+(install|add|remove|upgrade|update)\\b",
+      "^(docker|docker-compose|podman)\\b"
+    ],
+    "paths": [
+      "**/migrations/**",
+      "**/package.json",
+      "**/pyproject.toml",
+      "**/go.mod",
+      "**/Cargo.toml",
+      "**/composer.json",
+      ".github/workflows/**"
+    ]
+  },
+  "test": {
+    "command": "node .agents/scripts/test-safe.mjs",
+    "allowedHosts": ["127.0.0.1", "localhost", "::1", "db-test"],
+    "requireNameSuffix": "_test",
+    "allowDestructiveSql": false,
+    "dropSchemaAfterRun": true,
+    "refuseMatchingDevUrl": true
+  },
+  "protectedWrites": [
+    "AGENTS.md",
+    "**/package-lock.json",
+    "**/pnpm-lock.yaml",
+    "**/yarn.lock",
+    "**/bun.lockb"
+  ],
+  "notes": [
+    "Regexes are case-sensitive by design.",
+    "A block must be reported to the human, never worked around.",
+    "Policy changes require a human edit and a sync."
+  ]
+}

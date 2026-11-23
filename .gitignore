@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.tmp/
+*.log
+*.tgz
+.env
+.env.*
+!.env.example
+.agentic/backups/
+.agentic/logs/
+.agentic/conflicts/
+packages/cli/lib/
+packages/cli/templates/
+examples/*/.agentic/

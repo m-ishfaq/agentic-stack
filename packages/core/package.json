@@ -1,0 +1,31 @@
+{
+  "name": "@agentic-stack/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generation engine for agentic-stack",
+  "license": "MIT",
+  "author": {
+    "name": "m-1shfaq",
+    "url": "https://github.com/m-1shfaq"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m-1shfaq/agentic-stack.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/m-1shfaq/agentic-stack#readme",
+  "bugs": {
+    "url": "https://github.com/m-1shfaq/agentic-stack/issues"
+  },
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

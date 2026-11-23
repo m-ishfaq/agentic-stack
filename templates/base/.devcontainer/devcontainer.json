@@ -1,0 +1,21 @@
+{
+  "name": "agentic-stack",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "containerEnv": {
+    "AGENTIC_PROJECT_ROOT": "${containerWorkspaceFolder}"
+  },
+  "remoteUser": "vscode",
+  "mounts": [],
+  "runArgs": ["--init"],
+  "postCreateCommand": "node --version",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

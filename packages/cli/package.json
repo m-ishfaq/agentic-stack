@@ -1,0 +1,50 @@
+{
+  "name": "agentic-stack",
+  "version": "0.1.0",
+  "description": "Safety-first AI coding setup for any repository, installed with one command",
+  "license": "MIT",
+  "author": {
+    "name": "m-1shfaq",
+    "url": "https://github.com/m-1shfaq"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m-1shfaq/agentic-stack.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/m-1shfaq/agentic-stack#readme",
+  "bugs": {
+    "url": "https://github.com/m-1shfaq/agentic-stack/issues"
+  },
+  "keywords": [
+    "agents",
+    "ai",
+    "claude",
+    "codex",
+    "copilot",
+    "cursor",
+    "gemini",
+    "ai-coding",
+    "agent-rules",
+    "scaffold"
+  ],
+  "type": "module",
+  "bin": {
+    "agentic": "./bin/agentic.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-package.mjs",
+    "test": "node --test test/*.test.js"
+  }
+}
