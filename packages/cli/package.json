@@ -4,17 +4,17 @@
   "description": "Safety-first AI coding setup for any repository, installed with one command",
   "license": "MIT",
   "author": {
-    "name": "m-1shfaq",
-    "url": "https://github.com/m-1shfaq"
+    "name": "m-ishfaq",
+    "url": "https://github.com/m-ishfaq"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/m-1shfaq/agentic-stack.git",
+    "url": "git+https://github.com/m-ishfaq/agentic-stack.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://github.com/m-1shfaq/agentic-stack#readme",
+  "homepage": "https://github.com/m-ishfaq/agentic-stack#readme",
   "bugs": {
-    "url": "https://github.com/m-1shfaq/agentic-stack/issues"
+    "url": "https://github.com/m-ishfaq/agentic-stack/issues"
   },
   "keywords": [
     "agents",

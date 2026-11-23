@@ -1,7 +1,7 @@
 # agentic-stack
 
 [![npm](https://img.shields.io/npm/v/agentic-stack.svg)](https://www.npmjs.com/package/agentic-stack)
-[![ci](https://github.com/m-1shfaq/agentic-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/m-1shfaq/agentic-stack/actions/workflows/ci.yml)
+[![ci](https://github.com/m-ishfaq/agentic-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/m-ishfaq/agentic-stack/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/agentic-stack.svg)](LICENSE)
 
 One repo plus one npm package that installs a complete AI coding setup into any project with one command. Any language, any stack.
@@ -12,7 +12,7 @@ The setup is not a prompt collection. It is a contract: how the agent answers, w
 
 Phase 3 MVP. The CLI installs a working setup, generates seven adapters, checks drift, blocks unsafe actions, runs tests against a disposable database, upgrades without overwriting local edits, and adds or removes packs after install.
 
-Repo: [github.com/m-1shfaq/agentic-stack](https://github.com/m-1shfaq/agentic-stack). Package: [agentic-stack](https://www.npmjs.com/package/agentic-stack) on npm, MIT, no telemetry.
+Repo: [github.com/m-ishfaq/agentic-stack](https://github.com/m-ishfaq/agentic-stack). Package: [agentic-stack](https://www.npmjs.com/package/agentic-stack) on npm, MIT, no telemetry.
 
 Not built yet: the pack registry, the standalone GitHub Action, and organization-level template sync. See `docs/06-roadmap.md`.
 
@@ -20,7 +20,7 @@ Not built yet: the pack registry, the standalone GitHub Action, and organization
 
 | Part | Role |
 |---|---|
-| GitHub repo [m-1shfaq/agentic-stack](https://github.com/m-1shfaq/agentic-stack) | source, docs, packs, template, contributions |
+| GitHub repo [m-ishfaq/agentic-stack](https://github.com/m-ishfaq/agentic-stack) | source, docs, packs, template, contributions |
 | npm package [agentic-stack](https://www.npmjs.com/package/agentic-stack) | install, sync, check, upgrade. Binary: `agentic` |
 | `.agentic/lock.json` | template version and file hashes, used for safe upgrades |
 
@@ -130,7 +130,7 @@ npm publish --access public
 
 ## Contributing
 
-Issues and pull requests are welcome at [m-1shfaq/agentic-stack](https://github.com/m-1shfaq/agentic-stack). Run `npm test` and `npm run eval` before opening a pull request.
+Issues and pull requests are welcome at [m-ishfaq/agentic-stack](https://github.com/m-ishfaq/agentic-stack). Run `npm test` and `npm run eval` before opening a pull request.
 
 ## Docs
 
