@@ -30,8 +30,11 @@ The agent can still do normal work. It cannot do the things that lose data or le
 # inside your project
 npx agentic-stack@latest init
 
-# non-interactive
+# non-interactive, all adapters
 npx agentic-stack@latest init --yes
+
+# neutral, only AGENTS.md and .agents/
+npx agentic-stack@latest init --yes --adapters none
 
 # pick adapters and a stack pack
 npx agentic-stack@latest init --adapters claude,cursor --packs typescript
@@ -76,7 +79,7 @@ agentic.config.json        adapters, packs, extras, budgets
 
 `AGENTS.md` and `.agents/` are the source of truth. Tool files are generated from them and carry a "do not edit" header.
 
-Adapters are selected by flag, or detected from folders already in the repo. With none selected, the install is still complete: `AGENTS.md` and `.agents/` are read by Codex, Cline, and other agents directly.
+A fresh install with no existing tool folders writes every supported adapter. That way Claude, Cursor, Copilot, Codex, Gemini, Cline, Devin, and Aider all load the rules without extra setup. If tool folders already exist, those tools are used. Pass `--adapters none` for a neutral install with only `AGENTS.md` and `.agents/`.
 
 | Tool | Files | Rules | Skills | Commands | Hooks | MCP |
 |---|---|---|---|---|---|---|
@@ -101,7 +104,7 @@ Every rule exists twice: as guidance, then as enforcement.
 | Hooks | block off-limits commands and paths before they run |
 | Policy file | one deny, ask, and allow list, translated per tool |
 | Test runner | throwaway database only, refuses dev or prod targets |
-| CI (opt-in) | runs `agentic check` where hooks do not exist |
+| CI (opt-in) | verifies installed files and policy are intact |
 | Devcontainer (opt-in) | project-only access, no home secrets, no host database |
 
 Denied at every strictness level:
@@ -139,7 +142,7 @@ agentic doctor [dir]      check Node, git, config, and hook files
 agentic eject [dir]       remove CLI metadata, keep every installed file
 ```
 
-`init` flags: `--yes`, `--adapters`, `--packs`, `--strictness`, `--ci`, `--devcontainer`, `--no-gitignore`, `--force`, `--dry-run`.
+`init` flags: `--yes`, `--adapters` (`all`, `none`, or a list), `--packs`, `--strictness`, `--ci`, `--devcontainer`, `--no-gitignore`, `--force`, `--dry-run`.
 
 Existing files are merged or left alone, never silently replaced. `AGENTS.md` gets a managed block, `CLAUDE.md` gets an `@AGENTS.md` import, and JSON settings keep your keys while adding the guard hooks. Files we cannot merge are listed as skipped. `--force` backs up and replaces.
 
@@ -172,7 +175,7 @@ Packs add rules for one ecosystem. Install with `--packs`, or later with `agenti
       "build": null
     }
   },
-  "adapters": [],
+  "adapters": ["claude", "cursor", "copilot", "codex", "gemini", "cline", "devin", "aider"],
   "packs": ["php-laravel"],
   "extras": { "ci": false, "devcontainer": false },
   "policy": { "strictness": "strict", "scope": "project" },
@@ -246,8 +249,8 @@ node packages/cli/bin/agentic.js init .tmp/demo --yes
 3. Push a matching tag.
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The `publish` workflow runs tests and evals, checks the tag against the package version, then publishes with provenance.

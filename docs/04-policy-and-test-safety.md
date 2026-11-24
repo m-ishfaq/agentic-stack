@@ -162,4 +162,4 @@ Run tests only with the configured testSafe command.
 If a task seems to need any of these, stop and ask the human.
 ```
 
-The full policy is enforced by hooks and CI, not by this paragraph.
+Hooks enforce the full policy at runtime where the tool supports them. CI verifies that the installed policy, hooks, and generated files are intact. It cannot verify that an agent obeyed them.

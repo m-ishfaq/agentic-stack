@@ -25,7 +25,7 @@ export function defaultConfig(project) {
       packageManager: project.packageManager,
       commands: project.commands,
     },
-    adapters: project.adapters ?? [],
+    adapters: project.adapters?.length ? project.adapters : [...VALID_ADAPTERS],
     packs: project.packs ?? [],
     extras: {
       ci: false,

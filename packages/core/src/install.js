@@ -35,7 +35,7 @@ export async function planInstall(root, options = {}) {
   const existing = await loadConfig(root);
   const config = existing ?? defaultConfig(detected);
 
-  if (options.adapters) config.adapters = options.adapters;
+  if (options.adapters !== undefined) config.adapters = options.adapters;
   else if (!existing && detected.adapters.length > 0) config.adapters = detected.adapters;
 
   if (options.packs) config.packs = options.packs;

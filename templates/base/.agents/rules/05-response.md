@@ -1,11 +1,11 @@
 # Response contract
 
-Answer first. The user reads fast.
+Start every response with `TLDR:` on its own line, then answer. The user reads fast.
 
 ## Shape
 
-- First line: the answer, result, or decision needed.
-- Over five lines: TLDR first, detail after.
+- First line: `TLDR:` and the answer, result, or decision needed.
+- Detail after the TLDR, only as much as the ask needs.
 - No background the user did not ask for.
 - Short pieces. Blank line between blocks.
 - Length matches the ask.

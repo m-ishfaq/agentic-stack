@@ -175,19 +175,63 @@ test('init stays neutral, merges existing files, and keeps user edits', async ()
   assert.equal(synced.match(/agentic-stack:begin/g).length, 1);
 });
 
-test('empty project writes not configured and no adapter', async () => {
+test('empty project defaults to every adapter and an explicit TLDR contract', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-empty-'));
   const result = await initProject(root, {});
   assert.equal(result.ok, true, result.problems?.join(', '));
-  assert.deepEqual(result.config.adapters, []);
+  assert.deepEqual(result.config.adapters, [
+    'claude',
+    'cursor',
+    'copilot',
+    'codex',
+    'gemini',
+    'cline',
+    'devin',
+    'aider',
+  ]);
   assert.equal(result.config.project.stack, null);
   assert.equal(result.config.project.packageManager, null);
   assert.equal(result.config.project.commands.test, null);
-  await assert.rejects(fs.access(path.join(root, 'CLAUDE.md')));
   await assert.rejects(fs.access(path.join(root, '.devcontainer')));
+
+  for (const file of [
+    'CLAUDE.md',
+    'GEMINI.md',
+    '.github/copilot-instructions.md',
+    '.cursor/rules/05-response.mdc',
+    '.clinerules/05-response.md',
+    '.devin/rules/05-response.md',
+    'CONVENTIONS.md',
+  ]) {
+    await fs.access(path.join(root, file));
+  }
+
+  for (const file of [
+    'AGENTS.md',
+    'CLAUDE.md',
+    'GEMINI.md',
+    '.github/copilot-instructions.md',
+    '.cursor/rules/05-response.mdc',
+    '.clinerules/05-response.md',
+    '.devin/rules/05-response.md',
+    'CONVENTIONS.md',
+  ]) {
+    const content = await fs.readFile(path.join(root, file), 'utf8');
+    assert.match(content, /TLDR:/, file);
+  }
 
   const agents = await fs.readFile(path.join(root, 'AGENTS.md'), 'utf8');
   assert.match(agents, /not configured/);
+});
+
+test('explicit empty adapter list keeps a neutral install', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agentic-neutral-'));
+  const result = await initProject(root, { adapters: [] });
+  assert.equal(result.ok, true, result.problems?.join(', '));
+  assert.deepEqual(result.config.adapters, []);
+  await assert.rejects(fs.access(path.join(root, 'CLAUDE.md')));
+  await assert.rejects(fs.access(path.join(root, '.cursor')));
+  assert.match(await fs.readFile(path.join(root, 'AGENTS.md'), 'utf8'), /TLDR:/);
 });
 
 test('detects Laravel commands without assuming npm', async () => {

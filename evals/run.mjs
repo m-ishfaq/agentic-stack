@@ -42,7 +42,7 @@ await check('policy blocks the required actions', async () => {
 
 await check('response contract contains the hard rules', async () => {
   const text = await fs.readFile(path.join(base, '.agents', 'rules', '05-response.md'), 'utf8');
-  for (const phrase of ['Answer first', 'em-dash', 'not verified', 'TLDR', 'English']) {
+  for (const phrase of ['Start every response', 'em-dash', 'not verified', 'TLDR', 'English']) {
     assert.ok(text.includes(phrase), `missing: ${phrase}`);
   }
 });

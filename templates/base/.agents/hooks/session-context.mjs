@@ -9,6 +9,7 @@ const root = path.resolve(
 const lines = [];
 
 lines.push('Session context:');
+lines.push('- Response contract: start every response with `TLDR:` on its own line.');
 
 try {
   const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);

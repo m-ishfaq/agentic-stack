@@ -99,7 +99,7 @@ Machine-readable with `--json`.
 
 `agentic.config.json`, schema-validated. Unknown keys fail. See `01-architecture.md` for the shape.
 
-Precedence: CLI flag, then config, then detection, then default. With no flag, adapters come from folders already in the repo. If there are none, `adapters` stays empty and the neutral core still installs. During `init` the resolved choice is written to `agentic.config.json`, so later runs reuse it. `sync` fills missing commands from detection but never overwrites a command you set. `add` updates only packs.
+Precedence: CLI flag, then config, then detection, then default. With no flag, adapters come from folders already in the repo. If there are none on a fresh install, every supported adapter is written so each provider loads the rules without extra setup. `--adapters none` keeps the install neutral. During `init` the resolved choice is written to `agentic.config.json`, so later runs reuse it. `sync` fills missing commands from detection but never overwrites a command you set. `add` updates only packs.
 
 ## Lockfile
 

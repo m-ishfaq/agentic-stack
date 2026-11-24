@@ -22,6 +22,7 @@ const {
   initProject,
   syncProject,
   upgradeProject,
+  VALID_ADAPTERS,
   VALID_STRICTNESS,
   VERSION,
 } = core;
@@ -56,10 +57,13 @@ function parseFlags(list) {
 
 function list(value) {
   if (!value || value === true) return undefined;
-  return String(value)
+  const items = String(value)
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+  if (items.length === 1 && items[0] === 'none') return [];
+  if (items.length === 1 && items[0] === 'all') return [...VALID_ADAPTERS];
+  return items;
 }
 
 async function main() {
@@ -150,8 +154,8 @@ async function init() {
   console.log('Skills:   .agents/skills/');
   console.log('Policy:   .agents/policies/deny.json');
   if (adapters.length === 0) {
-    console.log('\nNo tool adapter selected. AGENTS.md and .agents/ work as is.');
-    console.log('Add tool output later with: agentic init . --adapters claude,cursor');
+    console.log('\nNeutral install. Only AGENTS.md and .agents/ were written.');
+    console.log('Add tool output later with: agentic init . --adapters all');
   }
   console.log('\nNext, you run:');
   console.log('  git status');
@@ -324,6 +328,7 @@ Usage:
 Options:
   --yes                 accept defaults, no prompt
   --adapters <list>     claude,cursor,copilot,codex,gemini,cline,devin,aider
+                        default: detected, otherwise all; use none for neutral
   --packs <list>        typescript,react-next,python,go,php-laravel,java,rust,docker,monorepo,mobile
   --strictness <level>  strict, balanced, loose
   --ci                  add a GitHub Actions check workflow

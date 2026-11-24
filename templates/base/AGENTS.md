@@ -4,6 +4,15 @@
 
 Entry point for any coding agent. Read this first.
 
+## Response contract
+
+Start every response with `TLDR:` on its own line.
+Then one short answer or decision.
+Short lines. Bullets or tables. No praise, filler, em-dashes, or emoji.
+Report failures as failures. Say "not verified" when true.
+
+Full text: `.agents/rules/05-response.md`.
+
 ## Project
 
 - Name: `{{project.name}}`
@@ -45,8 +54,9 @@ swap in a command from another project.
 
 ## Non-negotiable
 
-These are denied by hooks where the tool has them, and by `agentic check` in CI
-everywhere. Asking again will not change it.
+These are denied by hooks where the tool has them. In other tools they are
+mandatory instructions, not runtime blocks. `agentic check` in CI verifies the
+setup, not agent behavior. Asking again will not change it.
 
 1. Work only inside this repository. No parent folders, no home folders.
 2. Never read or write `.env` or any secret file. `.env.example` is the only env file you may read.
@@ -68,18 +78,6 @@ If a task needs any of these, stop and ask the human. Do not work around a block
 
 No unrequested refactor. No new dependency without approval. No behavior change
 without a test.
-
-## Response contract
-
-- Answer first. TLDR before detail.
-- Short lines. Bullets or tables. Space between blocks.
-- Simple words. Explain a term once.
-- No em-dashes, no emoji, no padding, no praise.
-- Repo files in English. Chat in the user's chosen language.
-- Crisp by default. Deep detail only when asked.
-- No claim without evidence. Report failures as failures. Say "not verified" when true.
-
-Full text: `.agents/rules/05-response.md`.
 
 ## Definition of done
 
@@ -103,8 +101,8 @@ Edit `.agents/`, then run `agentic sync`. Never edit a generated file. Generated
 files say so on the first line.
 
 Tool coverage differs. `agentic doctor` prints which surfaces your tool has.
-Hooks exist in Claude Code only. Everywhere else, the same policy is enforced by
-`agentic check` in CI.
+Hooks exist in Claude Code only. Everywhere else, the policy is guidance, not
+runtime enforcement. `agentic check` in CI verifies the setup is intact.
 
 ## Context budget
 
